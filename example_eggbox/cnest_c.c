@@ -3,7 +3,7 @@
 #include <math.h>
 #include <string.h>
 
-extern void nested_mp_nestrun_(int *mmodal, int *ceff, int *nlive, double *tol, double *efr, int *ndims,
+extern void __nested_MOD_nestrun(int *mmodal, int *ceff, int *nlive, double *tol, double *efr, int *ndims,
     int *nPar, int *nClsPar, int *maxModes, int *updInt, double *Ztol, char *root,
     int *seed, int *pWrap, int *fb, int *resume, void (*Loglike)(double *Cube, int *n_dim, int *n_par,
     double *lnew), int *context);
@@ -16,7 +16,7 @@ void run(int mmodal, int ceff, int nlive, double tol, double efr, int ndims, int
 	for (i = strlen(root); i < 100; i++)
 		root[i] = ' ';
 	
-        nested_mp_nestrun_(&mmodal, &ceff, &nlive, &tol, &efr, &ndims, &nPar, &nClsPar, &maxModes, &updInt, &Ztol,
+        __nested_MOD_nestrun(&mmodal, &ceff, &nlive, &tol, &efr, &ndims, &nPar, &nClsPar, &maxModes, &updInt, &Ztol,
         root, &seed, pWrap, &fb, &resume, LogLike, &context);
     }   
 
