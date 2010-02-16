@@ -20,7 +20,7 @@ all: eggbox
 	$(CC) $(CFLAGS) -c $*.cc
  
 eggbox: $(OBJFILES)
-	$(FC) $(FFLAGS) -nofor_main -o ../eggbox $(OBJFILES) $(MCLIBS) $(LIBS)
+	$(FC) $(FFLAGS) -o ../eggbox $(OBJFILES) $(MCLIBS) $(LIBS)
 
 clean:
 	rm -f *.o *.mod ../eggbox
