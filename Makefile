@@ -1,5 +1,5 @@
-FC = mpif90 -DMPI
-FFLAGS +=  -w -O3
+FC = mpif90 -DMPI 
+FFLAGS +=  -w -O3 -ffree-line-length-none
 
  
 AR = ar r  
