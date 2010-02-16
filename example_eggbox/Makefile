@@ -9,7 +9,7 @@ LINKLIB = ld -shared
 LIBDIR = ..
 NESTED_lib = ..
 NESTED_inc = ..
-LIBS =  -L$(LIBDIR) -lnest3 -lmkl_lapack -lmkl -lguide -lpthread
+LIBS =  -L$(LIBDIR) -lnest3 -llapack -lpthread
 MCLIBS = -lstdc++
  
 OBJFILES = cnest_c.o

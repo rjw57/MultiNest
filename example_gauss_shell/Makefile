@@ -6,7 +6,7 @@ LINKLIB = ld -shared
 LIBDIR = ..
 NESTED_lib = ..
 NESTED_inc = ..
-LIBS=-L$(NESTED_lib) -lnest3 -lmkl_lapack -lmkl -lguide -lpthread
+LIBS=-L$(NESTED_lib) -lnest3 -llapack -lpthread
  
 OBJFILES = params.o like.o nestwrap.o main.o
 
