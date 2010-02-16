@@ -15,7 +15,7 @@ NSOBJECTS = utils.o utils1.o priors.o kmeans_clstr.o xmeans_clstr.o posterior.o 
 	$(FC) $(FFLAGS) -c -o $@ $^ 
 
  
-all: libnest3.a  obj_detect eggbox gauss_shell 
+all: libnest3.a libnest3.so obj_detect eggbox gauss_shell 
  
 libnest3.so: $(NSOBJECTS) 
 	$(LINKLIB) -o $(LIBS) $@ $^ 
