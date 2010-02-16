@@ -53,6 +53,7 @@ contains
 	logical nest_mmodal,nest_fb,nest_resume,nest_ceff
 	character(LEN=100) nest_root
 	real*8 nest_tol,nest_ef,nest_Ztol
+	logical mpion
 	
 	INTERFACE
     		!the likelihood function
@@ -63,12 +64,15 @@ contains
     	end INTERFACE
 	
 #ifdef MPI
-	!MPI initializations
-	call MPI_INIT(errcode)
-	if (errcode/=MPI_SUCCESS) then
+	!MPI initializations - only initialise once by checking mpion flag
+	call MPI_INITIALIZED(mpion, errcode)
+	if (.not.mpion) then
+	   call MPI_INIT(errcode)
+	   if (errcode/=MPI_SUCCESS) then
      		write(*,*)'Error starting MPI program. Terminating.'
      		call MPI_ABORT(MPI_COMM_WORLD,errcode)
-  	end if
+  	   end if
+	endif
 	call MPI_COMM_RANK(MPI_COMM_WORLD, my_rank, errcode)
 	call MPI_COMM_SIZE(MPI_COMM_WORLD, mpi_nthreads, errcode)
 #else
