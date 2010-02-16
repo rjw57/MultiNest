@@ -1,5 +1,5 @@
 FC = mpif90 
-FFLAGS +=  -fpp -w -O3
+FFLAGS +=  -w -O3
 CXXFLAGS +=  -I. -O3
  
 LINKLIB = ld -shared  
