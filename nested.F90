@@ -1,5 +1,5 @@
 ! Do nested sampling algorithm to calculate Bayesian evidence
-! June 2009
+! Nov 2011
 ! Farhan Feroz
 
 module Nested
@@ -197,9 +197,9 @@ contains
 		endif
       
 		write(*,*)"*****************************************************"
-		write(*,*)"MultiNest v2.13"
+		write(*,*)"MultiNest v2.14"
       		write(*,*)"Copyright Farhan Feroz & Mike Hobson"
-      		write(*,*)"Release Oct 2011"
+      		write(*,*)"Release Nov 2011"
 		write(*,*)
       		write(*,'(a,i4)')" no. of live points = ",nest_nlive
       		write(*,'(a,i4)')" dimensionality = ",nest_ndims
@@ -1877,6 +1877,8 @@ contains
 					evData(j1,totPar+1)=lowlike
 					evData(j1,totPar+2)=log(h)
 					evData(j1,totPar+3)=dble(nd)
+					
+					lowlike=minval(l(nd_j+1:nd_j+ic_npt(nd)))
 				
 					!write the output files
 					if(abs(lowlike-ic_hilike(nd))<= 0.0001 .or. (ic_inc(nd)<log(tol) .and. &
