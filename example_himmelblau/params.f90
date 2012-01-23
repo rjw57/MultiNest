@@ -71,6 +71,19 @@ implicit none
       	!whether to resume from a previous run
       	logical nest_resume
       	parameter(nest_resume=.false.)
+      
+      	!whether to write output files
+      	logical nest_outfile
+      	parameter(nest_outfile=.true.)
+      
+      	!initialize MPI routines?, relevant only if compiling with MPI
+	!set it to F if you want your main program to handle MPI initialization
+      	logical nest_initMPI
+      	parameter(nest_initMPI=.true.)
+      
+      	!points with loglike < nest_logZero will be ignored by MultiNest
+      	double precision nest_logZero
+      	parameter(nest_logZero=-huge(1d0))
 	
 	!parameters to wrap around (0 is F & non-zero T)
 	integer nest_pWrap(sdim)

@@ -30,7 +30,6 @@ module Nested
   logical ceff ! constant efficiency?
   integer numlike,globff
   double precision logZero
-  parameter(logZero=-1d10)
   logical fback,resumeFlag,dlive,genLive,dino
   !output files name
   character(LEN=100)physname,broot,rname,resumename,livename,evname
@@ -40,20 +39,20 @@ module Nested
   integer count,sCount
   logical, dimension(:), allocatable :: pWrap
   logical mWrap,aWrap !whether to do wraparound for mode separation
-  logical debug, prior_warning
+  logical debug, prior_warning, resume, outfile
 
 contains
   
   subroutine nestRun(nest_mmodal,nest_ceff,nest_nlive,nest_tol,nest_ef,nest_ndims,nest_totPar,nest_nCdims,maxClst, &
-  nest_updInt,nest_Ztol,nest_root,seed,nest_pWrap,nest_fb,nest_resume,loglike,dumper,context)
+  nest_updInt,nest_Ztol,nest_root,seed,nest_pWrap,nest_fb,nest_resume,nest_outfile,initMPI,nest_logZero,loglike,dumper,context)
         
   	implicit none
         
 	integer nest_ndims,nest_nlive,nest_updInt,context,seed,i
 	integer maxClst,nest_nsc,nest_totPar,nest_nCdims,nest_pWrap(*)
-	logical nest_mmodal,nest_fb,nest_resume,nest_ceff
+	logical nest_mmodal,nest_fb,nest_resume,nest_ceff,nest_outfile,initMPI
 	character(LEN=100) nest_root
-	double precision nest_tol,nest_ef,nest_Ztol
+	double precision nest_tol,nest_ef,nest_Ztol,nest_logZero
 	
 	INTERFACE
     		!the likelihood function
@@ -65,20 +64,22 @@ contains
 	
 	INTERFACE
 		!the user dumper function
-    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ)
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
 			integer nSamples, nlive, nPar
 			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
-			double precision maxLogLike, logZ
+			double precision maxLogLike, logZ, logZerr
 		end subroutine dumper
 	end INTERFACE
 	
 #ifdef MPI
-	!MPI initializations
-	call MPI_INIT(errcode)
-	if (errcode/=MPI_SUCCESS) then
-     		write(*,*)'Error starting MPI. Terminating.'
-     		call MPI_ABORT(MPI_COMM_WORLD,errcode)
-  	end if
+	if( initMPI ) then
+		!MPI initializations
+		call MPI_INIT(errcode)
+		if (errcode/=MPI_SUCCESS) then
+     			write(*,*)'Error starting MPI. Terminating.'
+     			call MPI_ABORT(MPI_COMM_WORLD,errcode)
+  		end if
+	endif
 	call MPI_COMM_RANK(MPI_COMM_WORLD, my_rank, errcode)
 	call MPI_COMM_SIZE(MPI_COMM_WORLD, mpi_nthreads, errcode)
 #else
@@ -89,12 +90,17 @@ contains
       	nlive=nest_nlive
 	Ztol=nest_Ztol
 	updInt=nest_updInt
+	logZero=nest_logZero
 	
 	ndims=nest_ndims
       	totPar=nest_totPar
 	nCdims=nest_nCdims
 	debug=.false.
 	prior_warning=.true.
+	resume=nest_resume
+	outfile=nest_outfile
+	if(.not.outfile) resume=.false.
+	
       	if(nCdims>ndims) then
 		if(my_rank==0) then
 			write(*,*)"ERROR: nCdims can not be greater than ndims."
@@ -183,7 +189,7 @@ contains
 	
 	if(my_rank==0) then
       		!set the resume flag to true if the resume file exists else to false
-      		if(nest_resume) then
+      		if(resume) then
 			inquire(file=resumename,exist=resumeFlag)
 			if(.not.resumeFlag) write(*,*)"MultiNest Warning: no resume file found, starting from scratch"
 		else
@@ -191,7 +197,7 @@ contains
 		endif
       
 		write(*,*)"*****************************************************"
-		write(*,*)"MultiNest v2.10"
+		write(*,*)"MultiNest v2.11"
       		write(*,*)"Copyright Farhan Feroz & Mike Hobson"
       		write(*,*)"Release April 2011"
 		write(*,*)
@@ -204,7 +210,7 @@ contains
 	
 	
       		!create the output files
-		if(.not.resumeFlag) then
+		if(.not.resumeFlag .and. outfile) then
 			open(unit=u_ev,file=evname,status='replace')
 			close(u_ev)
 		endif
@@ -214,7 +220,7 @@ contains
 	deallocate(pWrap)
       	call killRandomNS()
 #ifdef MPI
-	call MPI_FINALIZE(errcode)
+	if( initMPI ) call MPI_FINALIZE(errcode)
 #endif
 
   end subroutine nestRun
@@ -243,10 +249,10 @@ contains
 	
 	INTERFACE
 		!the user dumper function
-    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ)
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
 			integer nSamples, nlive, nPar
 			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
-			double precision maxLogLike, logZ
+			double precision maxLogLike, logZ, logZerr
 		end subroutine dumper
 	end INTERFACE
 	
@@ -280,7 +286,7 @@ contains
 					stop
 				endif
 			endif
-				close(u_resume)
+			close(u_resume)
 		
 			if( .not.genLive ) then
 				j = 0
@@ -373,10 +379,10 @@ contains
 	
 	INTERFACE
 		!the user dumper function
-    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ)
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
 			integer nSamples, nlive, nPar
 			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
-			double precision maxLogLike, logZ
+			double precision maxLogLike, logZ, logZerr
 		end subroutine dumper
 	end INTERFACE
 	
@@ -387,52 +393,56 @@ contains
 
 	if(my_rank==0) then
 	
-    		open(unit=u_resume,file=resumename,form='formatted',status='replace')
-    		write(u_resume,'(l2)')genLive
-    		close(u_resume)
+		if(outfile) then
+    			open(unit=u_resume,file=resumename,form='formatted',status='replace')
+    			write(u_resume,'(l2)')genLive
+    			close(u_resume)
+    			write(fmt,'(a,i5,a)')  '(',ndims+1,'E28.18)'
+    			write(fmt2,'(a,i5,a)')  '(',totPar+1,'E28.18,i4)'
+		endif
 
     		id=0
     		i=0
-    		write(fmt,'(a,i5,a)')  '(',ndims+1,'E28.18)'
-    		write(fmt2,'(a,i5,a)')  '(',totPar+1,'E28.18,i4)'
     
     		!resume from previous live points generation?
-    		if(resumeflag) then
-    			!read hypercube-live file
-			open(unit=u_live,file=livename,status='old')
-			do
-      				i=i+1
-				read(u_live,*,IOSTAT=iostatus) p(:,i),l(i)
-            			if(iostatus<0) then
-            				i=i-1
-                  			if(i>nlive) then
-						write(*,*)"ERROR: more than ",nlive," points in the live points file."
-						write(*,*)"Aborting"
+		if(outfile) then
+	    		if(resumeflag) then
+	    			!read hypercube-live file
+				open(unit=u_live,file=livename,status='old')
+				do
+	      				i=i+1
+					read(u_live,*,IOSTAT=iostatus) p(:,i),l(i)
+	            			if(iostatus<0) then
+	            				i=i-1
+	                  			if(i>nlive) then
+							write(*,*)"ERROR: more than ",nlive," points in the live points file."
+							write(*,*)"Aborting"
 #ifdef MPI
-						call MPI_ABORT(MPI_COMM_WORLD,errcode)
+							call MPI_ABORT(MPI_COMM_WORLD,errcode)
 #endif
-                        			stop
+	                        			stop
+						endif
+	                  			exit
 					endif
-                  			exit
-				endif
-			enddo
-    			close(u_live)
-
-			if(i>0) then
-				!read physical live file
-				open(unit=u_phys,file=physname,status='old')
-				do j=1,i
-					read(u_phys,*) phyP(:,j),l(j),idum
 				enddo
-    				close(u_phys)
-			endif
-    	
-      			open(unit=u_live,file=livename,form='formatted',status='old',position='append')
-    			open(unit=u_phys,file=physname,form='formatted',status='old',position='append')
-    		else
-      			open(unit=u_live,file=livename,form='formatted',status='replace')
-    			open(unit=u_phys,file=physname,form='formatted',status='replace')
-    		endif
+	    			close(u_live)
+	
+				if(i>0) then
+					!read physical live file
+					open(unit=u_phys,file=physname,status='old')
+					do j=1,i
+						read(u_phys,*) phyP(:,j),l(j),idum
+					enddo
+	    				close(u_phys)
+				endif
+	    	
+	      			open(unit=u_live,file=livename,form='formatted',status='old',position='append')
+	    			open(unit=u_phys,file=physname,form='formatted',status='old',position='append')
+	    		else
+	      			open(unit=u_live,file=livename,form='formatted',status='replace')
+	    			open(unit=u_phys,file=physname,form='formatted',status='replace')
+	    		endif
+		endif
     
     		j=i
 		nend=i
@@ -457,9 +467,10 @@ contains
 #ifdef MPI
 		deallocate( tmpl, tmpp, tmpphyP )
 #endif
-	
-		close(u_live)
-		close(u_phys)
+		if( outfile ) then
+			close(u_live)
+			close(u_phys)
+		endif
 		
             	return
 		
@@ -531,11 +542,13 @@ contains
 				enddo
 #endif
 				
-				!now write this batch to the files
-				do m=nstart,nend
-					write(u_live,fmt) p(1:ndims,m),l(m)
-            				write(u_phys,fmt2) phyP(:,m),l(m),1
-				enddo
+				if( outfile ) then
+					!now write this batch to the files
+					do m=nstart,nend
+						write(u_live,fmt) p(1:ndims,m),l(m)
+            					write(u_phys,fmt2) phyP(:,m),l(m),1
+					enddo
+				endif
 			endif
 		endif
 		if(k==nptPerProc) exit
@@ -547,9 +560,11 @@ contains
 #ifdef MPI
 	deallocate( tmpl, tmpp, tmpphyP )
 #endif
-
-    	close(u_live)
-   	close(u_phys)
+	
+	if( outfile ) then
+    		close(u_live)
+   		close(u_phys)
+	endif
 	genLive=.false.
     	resumeFlag=.false.
 #ifdef MPI
@@ -614,7 +629,7 @@ contains
 	double precision, dimension(:,:,:), allocatable :: eVolFrac
 	
 	!info for output file update
-	double precision, allocatable :: evData(:,:)
+	double precision, allocatable :: evData(:,:), evDataAll(:), evDataTemp(:)
 	
 	!isolated cluster info
 	integer ic_n !no. of nodes
@@ -671,10 +686,10 @@ contains
 	
 	INTERFACE
 		!the user dumper function
-    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ)
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
 			integer nSamples, nlive, nPar
 			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
-			double precision maxLogLike, logZ
+			double precision maxLogLike, logZ, logZerr
 		end subroutine dumper
 	end INTERFACE
 	
@@ -698,6 +713,7 @@ contains
 	
 	if(my_rank==0) then
 		!memory allocation
+		allocate(evDataAll(1))
 		allocate(sc_npt(maxeCls), nptk(maxeCls), nptx(nlive), meank(maxeCls,ndims), &
 		sc_eval(maxeCls,ndims), evalk(maxeCls,ndims), sc_invcov(maxeCls,ndims,ndims), &
 		invcovk(maxeCls,ndims,ndims), tMatk(maxeCls,ndims,ndims), &
@@ -914,30 +930,38 @@ contains
 		if(ic_done(0)) then
 			if(my_rank==0) then
                         
-                        	!write the resume file
-                        	funit1=u_resume
-				fName1=resumename
-                        	write(fmt,'(a,i5,a)')  '(',totPar+1,'E28.18,i4)'
-				open(unit=funit1,file=fName1,form='formatted',status='replace')
-				write(funit1,'(l2)').false.
-				write(funit1,'(4i12)')globff,numlike,ic_n,nlive
-				write(funit1,'(2E28.18)')gZ,ginfo
-				write(funit1,'(l2)')eswitch
-            			!write branching info
-	            		do i=1,ic_n
-            				write(funit1,'(i4)')ic_nBrnch(i)
-					if(ic_nBrnch(i)>0) then
-						write(fmt,'(a,i5,a)')  '(',2*ic_nBrnch(i),'E28.18)'
-						write(funit1,fmt)ic_brnch(i,1:ic_nBrnch(i),1),ic_brnch(i,1:ic_nBrnch(i),2)
-					endif
-				enddo
-				!write the node info
-				do i=1,ic_n
-					write(funit1,'(2l2,2i6)')ic_done(i),ic_reme(i),ic_fNode(i),ic_npt(i)
-					write(funit1,'(3E28.18)')ic_vnow(i),ic_Z(i),ic_info(i)
-					if(ceff) write(funit1,'(1E28.18)')ic_eff(i,4)
-				enddo
-                  		close(funit1)
+				if(outfile) then
+	                        	!write the resume file
+	                        	funit1=u_resume
+					fName1=resumename
+	                        	write(fmt,'(a,i5,a)')  '(',totPar+1,'E28.18,i4)'
+					open(unit=funit1,file=fName1,form='formatted',status='replace')
+					write(funit1,'(l2)').false.
+					write(funit1,'(4i12)')globff,numlike,ic_n,nlive
+					write(funit1,'(2E28.18)')gZ,ginfo
+					write(funit1,'(l2)')eswitch
+	            			!write branching info
+		            		do i=1,ic_n
+	            				write(funit1,'(i4)')ic_nBrnch(i)
+						if(ic_nBrnch(i)>0) then
+							write(fmt,'(a,i5,a)')  '(',2*ic_nBrnch(i),'E28.18)'
+							write(funit1,fmt)ic_brnch(i,1:ic_nBrnch(i),1),ic_brnch(i,1:ic_nBrnch(i),2)
+						endif
+					enddo
+					!write the node info
+					do i=1,ic_n
+						write(funit1,'(2l2,2i6)')ic_done(i),ic_reme(i),ic_fNode(i),ic_npt(i)
+						write(funit1,'(3E28.18)')ic_vnow(i),ic_Z(i),ic_info(i)
+						if(ceff) write(funit1,'(1E28.18)')ic_eff(i,4)
+					enddo
+	                  		close(funit1)
+				endif
+				
+				!fback
+                		if(fback) call gfeedback(gZ,numlike,globff,.false.)
+				call pos_samp(Ztol,globff,broot,nlive,ndims,nCdims,totPar,multimodal,outfile,gZ,ginfo,ic_n,ic_Z(1:ic_n), &
+				ic_info(1:ic_n),ic_reme(1:ic_n),ic_vnow(1:ic_n),ic_npt(1:ic_n),ic_nBrnch(1:ic_n),ic_brnch(1:ic_n,:,1),phyP(:,1:nlive), &
+				l(1:nlive),evDataAll,dumper)
 				
 				!if done then add in the contribution to the global evidence from live points
 				j=0
@@ -963,10 +987,6 @@ contains
                 		enddo
 				
 				ginfo=ginfo-gZ
-				
-				!fback
-                		if(fback) call gfeedback(gZ,numlike,globff,.false.)
-				call pos_samp(ceff,Ztol,globff,broot,nlive,ndims,nCdims,totPar,multimodal,dumper)
 			
 				!memory deallocation
 				deallocate(sc_npt, sc_invcov, sc_node, sc_eval, sc_evec)
@@ -980,6 +1000,7 @@ contains
 				deallocate(pnewa,phyPnewa,lnewa,sEll,remain,rIdx)
 				deallocate(totVol,eVolFrac,x1,x2,y1,y2,slope,intcpt,cVolFrac,pVolFrac)
 				if( prior_warning ) deallocate( ic_mean, ic_sigma )
+				deallocate( evDataAll )
 			endif
 			
 			deallocate( eswitchff, escount, dmin, evData, ic_sc, ic_npt, ic_done, ic_climits, &
@@ -1877,55 +1898,106 @@ contains
 			if(my_rank==0) then
 				if(sff>0 .and. (mod(sff,updInt)==0 .or. ic_done(0))) then
 				
-					!write the evidence file
-					funit1=u_ev
-					fName1=evname
-					open(unit=funit1,file=fName1,form='formatted',status='old', &
-					position='append')
-    					write(fmt,'(a,i5,a)')  '(',totPar+2,'E28.18,i5)'	
-					do i=1,j1
-    						write(funit1,fmt) evData(i,1:totPar+2),int(evData(i,totPar+3))
-					enddo
-					!close the files
-					close(funit1)
-				
-	                		!write the live file
-					funit1=u_phys
-					fName1=physname
-					funit2=u_live
-					fName2=livename
-					open(unit=funit1,file=fName1,form='formatted',status='replace')
-					open(unit=funit2,file=fName2,form='formatted',status='replace')
-                		
-					write(fmt,'(a,i5,a)')  '(',totPar+1,'E28.18,i4)'
-                			write(fmt1,'(a,i5,a)')  '(',ndims+1,'E28.18)'
-					k=0
-					do i=1,ic_n
-						if( prior_warning .and. mod(ff,50)== 0 ) then
-							ic_mean(i,1:ndims) = 0d0
-							ic_sigma(i,1:ndims) = 0d0
+					if( .not.outfile ) then
+						k=0
+						if( sff > updInt ) then
+							k=size(evDataAll)
+							allocate( evDataTemp(k) )
+							evDataTemp=evDataAll
+							deallocate( evDataAll )
+							allocate( evDataAll(k+j1*(totPar+3)) )
+							evDataAll(1:k)=evDataTemp(1:k)
+							deallocate( evDataTemp )
+						else
+							deallocate( evDataAll )
+							allocate( evDataAll(j1*(totPar+3)) )
 						endif
+						do i=1,j1
+    							evDataAll(k+1:k+totPar+3) = evData(i,1:totPar+3)
+							k=k+totPar+3
+						enddo
+					else
+						!write the evidence file
+						funit1=u_ev
+						fName1=evname
+						open(unit=funit1,file=fName1,form='formatted',status='old', position='append')
+	    					write(fmt,'(a,i5,a)')  '(',totPar+2,'E28.18,i5)'	
+						do i=1,j1
+	    						write(funit1,fmt) evData(i,1:totPar+2),int(evData(i,totPar+3))
+						enddo
+						!close the files
+						close(funit1)
+					
+		                		!write the live file
+						funit1=u_phys
+						fName1=physname
+						funit2=u_live
+						fName2=livename
+						open(unit=funit1,file=fName1,form='formatted',status='replace')
+						open(unit=funit2,file=fName2,form='formatted',status='replace')
+	                		
+						write(fmt,'(a,i5,a)')  '(',totPar+1,'E28.18,i4)'
+	                			write(fmt1,'(a,i5,a)')  '(',ndims+1,'E28.18)'
+						k=0
+						do i=1,ic_n
+							do j=1,ic_npt(i)
+								k=k+1
+								write(funit1,fmt) phyP(1:totPar,k),l(k),i
+								lPts(1:ndims) = ic_climits(i,1:ndims,1)+(ic_climits(i,1:ndims,2)-ic_climits(i,1:ndims,1))*p(1:ndims,k)
+								write(funit2,fmt1) lPts(1:ndims),l(k)
+							enddo
+	                			enddo
+						!close the files
+						close(funit1)
+						close(funit2)
 						
-						do j=1,ic_npt(i)
-							k=k+1
-							write(funit1,fmt) phyP(1:totPar,k),l(k),i
-							lPts(1:ndims) = ic_climits(i,1:ndims,1)+(ic_climits(i,1:ndims,2)-ic_climits(i,1:ndims,1))*p(1:ndims,k)
-							write(funit2,fmt1) lPts(1:ndims),l(k)
-							if( prior_warning .and. mod(ff,50)== 0 ) then
-								ic_mean(i,1:ndims) = ic_mean(i,1:ndims) + lPts(1:ndims)
-								ic_sigma(i,1:ndims) = ic_sigma(i,1:ndims) + lPts(1:ndims) * lPts(1:ndims)
+                  	
+	                  			!write the resume file
+						funit1=u_resume
+						fName1=resumename
+						open(unit=funit1,file=fName1,form='formatted',status='replace')
+	                	  	
+						write(funit1,'(l2)')genLive
+						write(funit1,'(4i12)')globff,numlike,ic_n,nlive
+						write(funit1,'(2E28.18)')gZ,ginfo
+						write(funit1,'(l2)')eswitch
+					
+	            				!write branching info
+		            			do i=1,ic_n
+	            					write(funit1,'(i4)')ic_nBrnch(i)
+							if(ic_nBrnch(i)>0) then
+								write(fmt,'(a,i5,a)')  '(',2*ic_nBrnch(i),'E28.18)'
+								write(funit1,fmt)ic_brnch(i,1:ic_nBrnch(i),1), ic_brnch(i,1:ic_nBrnch(i),2)
 							endif
 						enddo
-                			enddo
-					!close the files
-					close(funit1)
-					close(funit2)
+					
+						!write the node info
+						do i=1,ic_n
+							write(funit1,'(2l2,2i6)')ic_done(i),ic_reme(i),ic_fNode(i), ic_npt(i)
+							write(funit1,'(3E28.18)')ic_vnow(i),ic_Z(i),ic_info(i)
+							if(ceff) write(funit1,'(1E28.18)')ic_eff(i,4)
+						enddo
+	                  			close(funit1)
+					endif
 					
 					!check if the parameters are close the prior edges
 					if( prior_warning .and. mod(ff,50)== 0 ) then
 						flag = .false.
+						k=0
 						do i=1,ic_n
 							if( ic_npt(i) == 0 .or. ic_done(i) ) cycle
+								
+							ic_mean(i,1:ndims) = 0d0
+							ic_sigma(i,1:ndims) = 0d0
+							
+							do j=1,ic_npt(i)
+								k=k+1
+								lPts(1:ndims) = ic_climits(i,1:ndims,1)+(ic_climits(i,1:ndims,2)-ic_climits(i,1:ndims,1))*p(1:ndims,k)
+								if( prior_warning .and. mod(ff,50)== 0 ) then
+									ic_mean(i,1:ndims) = ic_mean(i,1:ndims) + lPts(1:ndims)
+									ic_sigma(i,1:ndims) = ic_sigma(i,1:ndims) + lPts(1:ndims) * lPts(1:ndims)
+								endif
+							enddo
 							
 							ic_mean(i,1:ndims) = ic_mean(i,1:ndims) / dble(ic_npt(i))
 							ic_sigma(i,1:ndims) = sqrt(max(0d0, ic_sigma(i,1:ndims) / dble(ic_npt(i)) + ic_mean(i,1:ndims) * ic_mean(i,1:ndims)))
@@ -1942,38 +2014,10 @@ contains
 							enddo
 						enddo
 					endif
-                  	
-                  			!write the resume file
-					funit1=u_resume
-					fName1=resumename
-					open(unit=funit1,file=fName1,form='formatted',status='replace')
-                	  	
-					write(funit1,'(l2)')genLive
-					write(funit1,'(4i12)')globff,numlike,ic_n,nlive
-					write(funit1,'(2E28.18)')gZ,ginfo
-					write(funit1,'(l2)')eswitch
-				
-            				!write branching info
-	            			do i=1,ic_n
-            					write(funit1,'(i4)')ic_nBrnch(i)
-						if(ic_nBrnch(i)>0) then
-							write(fmt,'(a,i5,a)')  '(',2*ic_nBrnch(i),'E28.18)'
-							write(funit1,fmt)ic_brnch(i,1:ic_nBrnch(i),1), &
-							ic_brnch(i,1:ic_nBrnch(i),2)
-						endif
-					enddo
-				
-					!write the node info
-					do i=1,ic_n
-						write(funit1,'(2l2,2i6)')ic_done(i),ic_reme(i),ic_fNode(i), &
-						ic_npt(i)
-						write(funit1,'(3E28.18)')ic_vnow(i),ic_Z(i),ic_info(i)
-						if(ceff) write(funit1,'(1E28.18)')ic_eff(i,4)
-					enddo
-                  			close(funit1)
 					
-					if(mod(sff,updInt*10)==0 .or. ic_done(0)) call pos_samp(ceff,Ztol, &
-					globff,broot,nlive,ndims,nCdims,totPar,multimodal,dumper)
+					if(mod(sff,updInt*10)==0 .or. ic_done(0)) call pos_samp(Ztol,globff,broot,nlive,ndims,nCdims,totPar, &
+					multimodal,outfile,gZ,ginfo,ic_n,ic_Z(1:ic_n),ic_info(1:ic_n),ic_reme(1:ic_n),ic_vnow(1:ic_n), &
+					ic_npt(1:ic_n),ic_nBrnch(1:ic_n),ic_brnch(1:ic_n,:,1),phyP(:,1:nlive),l(1:nlive),evDataAll,dumper)
 				endif
 			endif
 			

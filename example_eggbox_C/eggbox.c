@@ -16,18 +16,19 @@
 /***************************************** C Interface to MultiNest **************************************************/
 
 extern void __nested_MOD_nestrun(int *, int *, int *, double *, double *, int *, int *, int *, int *, int *, double *, 
-char *, int *, int *, int *, int *, void (*Loglike)(double *, int *, int *, double *), void (*dumper)(int *, int *, 
+char *, int *, int *, int *, int *, int *, int *, double *, void (*Loglike)(double *, int *, int *, double *), void (*dumper)(int *, int *, 
 int *, double **, double **, double *, double *, double *), int *context);
 
 void run(int mmodal, int ceff, int nlive, double tol, double efr, int ndims, int nPar, int nClsPar,  int maxModes,
-int updInt, double Ztol, char root[], int seed, int *pWrap, int fb, int resume, void (*LogLike)(double *, int *, 
-int *, double *), void (*dumper)(int *, int *, int *, double **, double **, double *, double *, double *), int context)
+int updInt, double Ztol, char root[], int seed, int *pWrap, int fb, int resume, int outfile, int initMPI, int logZero, 
+void (*LogLike)(double *, int *, int *, double *), void (*dumper)(int *, int *, int *, double **, double **, double *, 
+double *, double *, double *), int context)
 {
 	int i;
 	for (i = strlen(root); i < 100; i++) root[i] = ' ';
 	
         NESTRUN(&mmodal, &ceff, &nlive, &tol, &efr, &ndims, &nPar, &nClsPar, &maxModes, &updInt, &Ztol,
-        root, &seed, pWrap, &fb, &resume, LogLike, dumper, &context);
+        root, &seed, pWrap, &fb, &resume, &outfile, &initMPI, &logZero, LogLike, dumper, &context);
 }
 
 /***********************************************************************************************************************/
@@ -88,8 +89,9 @@ void LogLike(double *Cube, int *ndim, int *npars, double *lnew)
 //	paramConstr[nPar*4] to paramConstr[4*nPar - 1] 	= MAP (maximum-a-posteriori) parameters
 // maxLogLike						= maximum loglikelihood value
 // logZ							= log evidence value
+// logZerr						= error on log evidence value
 
-void dumper(int *nSamples, int *nlive, int *nPar, double **physLive, double **posterior, double *paramConstr, double *maxLogLike, double *logZ)
+void dumper(int *nSamples, int *nlive, int *nPar, double **physLive, double **posterior, double *paramConstr, double *maxLogLike, double *logZ, double *logZerr)
 {
 	// convert the 2D Fortran arrays to C arrays
 	
@@ -126,6 +128,8 @@ void dumper(int *nSamples, int *nlive, int *nPar, double **physLive, double **po
 
 int main(int argc, char *argv[])
 {
+	int i;
+	
 	// set the MultiNest sampling parameters
 	
 	
@@ -148,11 +152,12 @@ int main(int argc, char *argv[])
 	int updInt = 100;				// after how many iterations feedback is required & the output files should be updated
 							// note: posterior files are updated & dumper routine is called after every updInt*10 iterations
 	
-	double Ztol = -1.e90;				// all the modes with logZ < Ztol are ignored
+	double Ztol = -1E90;				// all the modes with logZ < Ztol are ignored
 	
 	int maxModes = 100;				// expected max no. of modes (used only for memory allocation)
 	
-	int pWrap[] = {0, 0};				// which parameters to have periodic boundary conditions?
+	int pWrap[ndims];				// which parameters to have periodic boundary conditions?
+	for(i = 0; i < ndims; i++) pWrap[i] = 0;
 	
 	char root[100] = "chains/eggboxC-";		// root for output files
 	
@@ -162,6 +167,13 @@ int main(int argc, char *argv[])
 	
 	int resume = 0;					// resume from a previous job?
 	
+	int outfile = 1;				// write output files?
+	
+	int initMPI = 1;				// initialize MPI routines?, relevant only if compiling with MPI
+							// set it to F if you want your main program to handle MPI initialization
+	
+	double logZero = -1E90;				// points with loglike < logZero will be ignored by MultiNest
+	
 	int context = 0;				// not required by MultiNest, any additional information user wants to pass
 
 	
@@ -169,7 +181,8 @@ int main(int argc, char *argv[])
 	// calling MultiNest
 	
 	
-	run(mmodal, ceff, nlive, tol, efr, ndims, nPar, nClsPar, maxModes, updInt, Ztol, root, seed, pWrap, fb, resume, LogLike, dumper, context);
+	run(mmodal, ceff, nlive, tol, efr, ndims, nPar, nClsPar, maxModes, updInt, Ztol, root, seed, pWrap, fb, resume, outfile, initMPI, logZero,
+	LogLike, dumper, context);
 }
 
 /***********************************************************************************************************************/

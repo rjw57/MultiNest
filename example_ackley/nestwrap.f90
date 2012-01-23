@@ -25,7 +25,7 @@ subroutine nest_Sample
 	
    	call nestRun(nest_mmodal,nest_ceff,nest_nlive,nest_tol,nest_efr,sdim,nest_nPar, &
    	nest_nClsPar,nest_maxModes,nest_updInt,nest_Ztol,nest_root,nest_rseed,nest_pWrap, &
-   	nest_fb,nest_resume,getLogLike,dumper,context)
+   	nest_fb,nest_resume,nest_outfile,nest_initMPI,nest_logZero,getLogLike,dumper,context)
 
 end subroutine nest_Sample
 
@@ -61,7 +61,7 @@ end subroutine getLogLike
 
 ! dumper, called after every updInt*10 iterations
 
-subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ)
+subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
 
 	implicit none
 
@@ -73,6 +73,7 @@ subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLo
 	double precision, pointer :: paramConstr(:)	! array with mean, sigmas, maxlike & MAP parameters
 	double precision maxLogLike			! max loglikelihood value
 	double precision logZ				! log evidence
+	double precision logZerr			! error on log evidence
 	
 end subroutine dumper
 

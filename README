@@ -1,4 +1,4 @@
-MultiNest v 2.10
+MultiNest v 2.11
 Farhan Feroz, Mike Hobson
 f.feroz@mrao.cam.ac.uk
 arXiv:0704.3704 & arXiv:0809.3437
@@ -30,28 +30,32 @@ restriction imposed by gfortran on line length.
 The subtoutine to begin MultiNest are as follows:
 
 subroutine nestRun(mmodal, ceff, nlive, tol, efr, ndims, nPar, nCdims, maxModes, updInt, nullZ, root, seed,
-pWrap, feedback, resume, loglike, context)
+pWrap, feedback, resume, outfile, initMPI, logZero, loglike, context)
 
 logical mmodal 	 								!do mode separation?
 integer nlive 	 								!number of live points
 logical ceff									!run in constant efficiency mode
-real*8 tol 		 							!evidence tolerance factor
-real*8 efr 		 							!sampling efficiency
+double precision tol 		 						!evidence tolerance factor
+double precision efr 		 						!sampling efficiency
 integer ndims	 								!number of dimensions
 integer nPar	 								!total no. of parameters
 integer nCdims									!no. of parameters on which clustering should be performed (read below)
 integer maxModes								!maximum no. of modes (for memory allocation)
 integer updInt									!iterations after which the output files should be written
-real*8 nullZ									!null log-evidence (read below)
+double precision nullZ								!null log-evidence (read below)
 character(LEN=100) root  							!root for MultiNest output files
 integer seed 		 							!random no. generator seed, -ve value for seed from the sys clock
 integer pWrap[ndims]								!wraparound parameters?
 logical feedback								!need update on sampling progress?
 logical resume									!resume from a previous run?
+logical outfile									!write output files?
+logical initMPI									!initialize MPI routines?, relevant only if compiling with MPI
+										!set it to F if you want your main program to handle MPI initialization
+double precision logZero							!points with loglike < logZero will be ignored by MultiNest
 loglike(Cube,ndims,nPar,lnew) 							!subroutine which gives lnew=loglike(Cube(ndims))
 dumper(nSamples,nlive,nPar,physLive,posterior,paramConstr,maxloglike,logZ)	!subroutine called after every updInt*10 iterations with the posterior 
 										!distribution, parameter constraints, max loglike & log evidence values
-integer context			!dummy integer for the C interface
+integer context									!dummy integer for the C interface
       
 --------------------------------------------------------------------------- 
 
@@ -64,7 +68,7 @@ Return the log-likelihood in lnew
 
 ---------------------------------------------------------------------------
 
-dumper routine: dumper(nSamples,nlive,nPar,physLive,posterior,paramConstr,maxloglike,logZ)
+dumper routine: dumper(nSamples,nlive,nPar,physLive,posterior,paramConstr,maxloglike,logZ, logZerr)
 
 This routine is called after every updInt*10 iterations & at the end of the sampling allowing the posterior 
 distribution & parameter constraints to be passed on to the user in the memory. The argument are as follows:
@@ -82,6 +86,7 @@ paramConstr(4*nPar):
      paramConstr(nPar*4+1) to paramConstr(4*nPar)  	= MAP (maximum-a-posteriori) parameters
 maxLogLike					    	= maximum loglikelihood value
 logZ						     	= log evidence value
+logZerr						     	= error on log evidence value
 
 The 2D arrays are Fortran arrays which are different to C/C++ arrays. In the example dumper routine provided with C & C++
 eggbox examples, the Fortran arrays are copied on to C/C++ arrays.

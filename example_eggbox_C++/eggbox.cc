@@ -22,14 +22,14 @@ namespace nested
 
 	// module nested, function nestRun maps to nested::run
 
-	// the pass-by-reference nature of most of the fortran is translated away
+	// the pass-by-reference nature of most of the Fortran is translated away
 	// *apart* from the callbacks. The provided call back functions must still accept 
 	// references rather than values. There is also some confusion as to the type
 	// of the first argument of LogLike. 
 	// Should it be a double * or an farray<double, 1> *? The former seems to 
 	// work and is simpler.
 
-	// This structure reverse engineered from looking 
+	// This structure is reverse engineered from looking 
 	// at gfortran stack traces. It is probably wrong
 	
 	template<typename type, int ndims> class farray_traits;
@@ -55,13 +55,14 @@ namespace nested
 	
 	extern "C" void NESTRUN(int &mmodal, int &ceff, int &nlive, double &tol, double &efr, int &ndims, 
 	int &nPar, int &nClsPar, int &maxModes, int &updInt, double &Ztol, char *root, int &seed, 
-	int *pWrap, int &fb, int &resume, void (*Loglike)(double *Cube, int &n_dim, int &n_par, double &lnew), 
-	void (*dumper)(int &, int &, int &, double **, double **, double *, double &, double &), int &root_len);
+	int *pWrap, int &fb, int &resume, int &outfile, int &initMPI, double &logZero, 
+	void (*Loglike)(double *Cube, int &n_dim, int &n_par, double &lnew), 
+	void (*dumper)(int &, int &, int &, double **, double **, double *, double &, double &, double &), int &root_len);
 
 	void run(bool mmodal, bool ceff, int nlive, double tol, double efr, int ndims, int nPar, int nClsPar, int maxModes, 
-	int updInt, double Ztol, const std::string &root, int seed, int *pWrap, bool fb, bool resume, 
+	int updInt, double Ztol, const std::string &root, int seed, int *pWrap, bool fb, bool resume, bool outfile, bool initMPI, double logZero,
 	void (*LogLike)(double *Cube, int &n_dim, int &n_par, double &lnew), 
-	void (*dumper)(int &, int &, int &, double **, double **, double *, double &, double &))
+	void (*dumper)(int &, int &, int &, double **, double **, double *, double &, double &, double &))
 	{
 		char t_root[100];
 		std::fill(t_root, t_root + 100, ' ');
@@ -71,11 +72,13 @@ namespace nested
 	
 		int t_fb = fb;
 		int t_resume = resume;
+		int t_outfile = outfile;
+		int t_initMPI = initMPI;
 		int t_mmodal = mmodal;
 		int t_ceff = ceff;
 		
 		NESTRUN(t_mmodal, t_ceff, nlive, tol, efr, ndims, nPar, nClsPar, maxModes, updInt, Ztol, 
-		t_root, seed, pWrap, t_fb, t_resume, LogLike, dumper, root_len);
+		t_root, seed, pWrap, t_fb, t_resume, t_outfile, t_initMPI, logZero, LogLike, dumper, root_len);
 	}	
 }
 
@@ -137,8 +140,9 @@ void LogLike(double *Cube, int &ndim, int &npars, double &lnew)
 //	paramConstr[nPar*4] to paramConstr[4*nPar - 1] 	= MAP (maximum-a-posteriori) parameters
 // maxLogLike						= maximum loglikelihood value
 // logZ							= log evidence value
+// logZerr						= error on log evidence value
 
-void dumper(int &nSamples, int &nlive, int &nPar, double **physLive, double **posterior, double *paramConstr, double &maxLogLike, double &logZ)
+void dumper(int &nSamples, int &nlive, int &nPar, double **physLive, double **posterior, double *paramConstr, double &maxLogLike, double &logZ, double &logZerr)
 {
 	// convert the 2D Fortran arrays to C++ arrays
 	
@@ -197,11 +201,12 @@ int main(int argc, char *argv[])
 	int updInt = 100;				// after how many iterations feedback is required & the output files should be updated
 							// note: posterior files are updated & dumper routine is called after every updInt*10 iterations
 	
-	double Ztol = -1.e90;				// all the modes with logZ < Ztol are ignored
+	double Ztol = -1E90;				// all the modes with logZ < Ztol are ignored
 	
 	int maxModes = 100;				// expected max no. of modes (used only for memory allocation)
 	
-	int pWrap[] = {0, 0};				// which parameters to have periodic boundary conditions?
+	int pWrap[ndims];				// which parameters to have periodic boundary conditions?
+	for(int i = 0; i < ndims; i++) pWrap[i] = 0;
 	
 	char root[100] = "chains/1-";			// root for output files
 	
@@ -211,13 +216,21 @@ int main(int argc, char *argv[])
 	
 	int resume = 1;					// resume from a previous job?
 	
+	int outfile = 1;				// write output files?
+	
+	int initMPI = 1;				// initialize MPI routines?, relevant only if compiling with MPI
+							// set it to F if you want your main program to handle MPI initialization
+	
+	double logZero = -1E90;				// points with loglike < logZero will be ignored by MultiNest
+	
 	int context = 0;				// not required by MultiNest, any additional information user wants to pass
 
 	
 	
 	// calling MultiNest
 
-	nested::run(mmodal, ceff, nlive, tol, efr, ndims, nPar, nClsPar, maxModes, updInt, Ztol, root, seed, pWrap, fb, resume, LogLike, dumper);
+	nested::run(mmodal, ceff, nlive, tol, efr, ndims, nPar, nClsPar, maxModes, updInt, Ztol, root, seed, pWrap, fb, resume, outfile, initMPI,
+	logZero, LogLike, dumper);
 }
 
 /***********************************************************************************************************************/

@@ -9,7 +9,7 @@ module posterior
   integer, dimension(:), allocatable :: nbranchp,nPtPerNode,ncon,nSamp,clstrdNode
   double precision, dimension(:,:), allocatable :: branchp
   double precision, dimension(:,:), allocatable :: pts,pts2,consP,unconsP,pwt,pNwt
-  logical, dimension(:), allocatable :: check,ic_reme
+  logical, dimension(:), allocatable :: check
   integer nClst,nUncon
   double precision, dimension(:,:), allocatable :: stMu,stSigma
 
@@ -17,7 +17,8 @@ contains
   
 !------------------------------------------------------------------------
       
- subroutine pos_samp(ceff,Ztol,nIter,root,nLpt,ndim,nCdim,nPar,multimodal,dumper)
+ subroutine pos_samp(Ztol,nIter,root,nLpt,ndim,nCdim,nPar,multimodal,outfile,globZ,globinfo,ic_n,ic_Z,ic_info,ic_reme,ic_vnow,ic_npt,ic_nBrnch, &
+	    ic_brnch,phyP,l,evDataAll,dumper)
  !subroutine pos_samp
   	implicit none
   	
@@ -28,36 +29,48 @@ contains
 	integer ndim !dimensionality
 	integer nCdim !no. of parameters to cluster on
 	integer nPar !total no. of parameters to save
-	logical multimodal,ceff
+	logical multimodal
+	logical outfile !write output files?
 	integer i,j,k,i1,ios,ic_n,m,indx
+	integer ic_npt(ic_n),ic_nptloc(ic_n),ic_nBrnch(ic_n)
+	double precision ic_Z(ic_n),ic_info(ic_n),ic_vnow(ic_n),ic_brnch(ic_n,ic_n),phyP(nPar,nLpt),l(nLpt),evDataAll(:)
+	logical ic_reme(ic_n)
   	character(len=100) evfile,livefile,postfile,resumefile
       	character(len=100) sepFile,statsFile,postfile4,strictSepFile,summaryFile
   	character(len=32) fmt,fmt2
       	logical l1
       	double precision d1,d2,urv
-      	double precision ltmp(nPar+2)
+      	double precision ltmp(nPar+2),ic_zloc(ic_n),ic_infoloc(ic_n),gzloc,ginfoloc
+	integer phyID(nLpt)
       
       	!posterior info
       	double precision lognpost,globZ,globInfo,gZold,maxWt
       	integer npost !no. of equally weighted posterior samples
       	double precision, dimension(:,:), allocatable :: wt,temp !probability weight of each posterior sample
-      	double precision, dimension(:), allocatable :: ic_Z,ic_zold,llike,ic_vnow,ic_info !local evidence
-      	integer, dimension(:), allocatable :: ic_npt
+      	double precision, dimension(:), allocatable :: ic_zold,llike !local evidence
 	
 	! parameters for dumper
 	double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
-	double precision maxLogLike, logZ
+	double precision maxLogLike, logZ, logZerr
 	integer nSamples
 	
 	INTERFACE
 		!the user dumper function
-    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ)
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
 			integer nSamples, nlive, nPar
 			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
-			double precision maxLogLike, logZ
+			double precision maxLogLike, logZ, logZerr
 		end subroutine dumper
 	end INTERFACE
-
+	
+	
+	ic_zloc=ic_z
+	ic_infoloc=ic_info
+	gzloc=globz
+	ginfoloc=globinfo
+	ic_nptloc=ic_npt
+	
+	
 	!Ztol=-1.d99
       	!file names
       	postfile=TRIM(root)//'.txt'
@@ -69,19 +82,12 @@ contains
       	livefile = TRIM(root)//'phys_live.points'
       	resumefile = TRIM(root)//'resume.dat'
       	summaryFile = TRIM(root)//'summary.txt'
-      
-      	!read the resumefile
-      	open(unit=55,file=resumefile,status='old')
-	read(55,*)l1
-	read(55,*)i1,i1,ic_n,i1
-	read(55,*)globZ,globInfo
-	read(55,*)l1
+	
       	allocate(branchp(0:ic_n,ic_n),evdatp(ic_n,nIter,nPar+2),wt(ic_n,nIter))
       	allocate(nbranchp(0:ic_n),nPtPerNode(ic_n))
-      	allocate(pts2(ndim+1,nIter),pts(nPar+2,nIter),consP(nIter,nPar+2), &
-	unconsP(nIter,nPar+2),pwt(nIter,ic_n),pNwt(nIter,ic_n))
+      	allocate(pts2(ndim+1,nIter),pts(nPar+2,nIter),consP(nIter,nPar+2),unconsP(nIter,nPar+2),pwt(nIter,ic_n),pNwt(nIter,ic_n))
       	allocate(ncon(ic_n),nSamp(ic_n),clstrdNode(ic_n))
-	allocate(check(ic_n),ic_reme(ic_n),ic_Z(ic_n),ic_zold(ic_n),ic_info(ic_n),ic_npt(ic_n),ic_vnow(ic_n),temp(ic_n,3))
+	allocate(check(ic_n),ic_zold(ic_n),temp(ic_n,3))
 	allocate(stMu(ic_n,nPar),stSigma(ic_n,nPar),llike(ic_n))
 	
 	nPtPerNode=0
@@ -90,79 +96,93 @@ contains
 	check=.false.
 	nSamp=0
 	
-	do i=1,ic_n
-            	read(55,*)nbranchp(i)
-		if(nbranchp(i)>0) read(55,*)branchp(i,1:nbranchp(i))
-	enddo
-			
-	!read the node info
-	do i=1,ic_n
-		read(55,*)l1,ic_reme(i),j,ic_npt(i)
-		read(55,*)ic_vnow(i),ic_Z(i),ic_info(i)
-		if(ceff) read(55,*)d1
-	enddo
-      	close(55)
+	nbranchp(1:ic_n)=ic_nbrnch(1:ic_n)
+	branchp(1:ic_n,:)=ic_brnch(1:ic_n,:)
 	
-	!add in the contribution of the remaining live points to the evidence      	
-     	open(unit=55,file=livefile,status='old')
+	
+	!set the membership of live points to their coresponding nodes
+	k=0
+	do i=1,ic_n
+		if(ic_nptloc(i)==0) cycle
+		phyID(k+1:k+ic_nptloc(i))=i
+		k=k+ic_nptloc(i)
+	enddo
+	
+	
+	!add in the contribution of the remaining live points to the evidence 
+	i1=1
 	do i=1,nLpt
-        	read(55,*) ltmp(1:nPar+1),i1
-		d1=ltmp(nPar+1)+log(ic_vnow(i1)/dble(ic_npt(i1)))
+		ltmp(1:nPar)=phyP(1:nPar,i)
+		ltmp(nPar+1)=l(i)
+		i1=phyID(i)
+	
+		d1=ltmp(nPar+1)+log(ic_vnow(i1)/dble(ic_nptloc(i1)))
 		
 		!global evidence & info
-		gZold=globZ
-		globZ=LogSumExp(globZ,d1)
-!		globInfo=exp(d1-globZ)*ltmp(nPar+1)+exp(gZold-globZ)*(globInfo+gZold)-globZ
-		globInfo=globInfo*exp(gzold-globz)+exp(d1-globz)*ltmp(nPar+1)
+		gZold=gzloc
+		gzloc=LogSumExp(gzloc,d1)
+!		ginfoloc=exp(d1-gzloc)*ltmp(nPar+1)+exp(gZold-gzloc)*(ginfoloc+gZold)-gzloc
+		ginfoloc=ginfoloc*exp(gzold-gzloc)+exp(d1-gzloc)*ltmp(nPar+1)
 		
 		!local evidence & info
 !		gZold=ic_Z(i1)
-		ic_zold(i1)=ic_z(i1)
-		ic_Z(i1)=LogSumExp(ic_Z(i1),d1)
-!		ic_info(i1)=exp(d1-ic_Z(i1))*ltmp(nPar+1)+exp(gZold-ic_Z(i1))*(ic_info(i1)+gZold)-ic_Z(i1)
-		ic_info(i1)=ic_info(i1)*exp(ic_zold(i1)-ic_z(i1))+exp(d1-ic_z(i1))*ltmp(nPar+1)
+		ic_zold(i1)=ic_zloc(i1)
+		ic_zloc(i1)=LogSumExp(ic_zloc(i1),d1)
+!		ic_infoloc(i1)=exp(d1-ic_zloc(i1))*ltmp(nPar+1)+exp(gZold-ic_zloc(i1))*(ic_infoloc(i1)+gZold)-ic_zloc(i1)
+		ic_infoloc(i1)=ic_infoloc(i1)*exp(ic_zold(i1)-ic_zloc(i1))+exp(d1-ic_zloc(i1))*ltmp(nPar+1)
 	enddo
-      	close(55)
 	
-	globInfo=globInfo-globZ
-	ic_info(1:ic_n)=ic_info(1:ic_n)-ic_Z(1:ic_n)
+	ginfoloc=ginfoloc-gzloc
+	ic_infoloc(1:ic_n)=ic_infoloc(1:ic_n)-ic_zloc(1:ic_n)
 
       	!make the top level branch
       	nbranchp(0)=1
       	branchp(0,1)=1.d0
         
       	lognpost=0.d0
-      	!read the ev.dat file & calculate the probability weights
-      	open(unit=55,file=evfile,status='old') 
-    	write(fmt,'(a,i4,a)')  '(',nPar+2,'E28.18,i4)'
+	if(outfile) then
+      		!read the ev.dat file & calculate the probability weights
+      		open(unit=55,file=evfile,status='old')
+	endif
+	i=0
     	do
-    		read(55,*,IOSTAT=ios) ltmp(1:nPar+2),i1
+		if(outfile) then
+    			read(55,*,IOSTAT=ios) ltmp(1:nPar+2),i1
 		
-		!end of file?
-        	if(ios<0) exit
+			!end of file?
+        		if(ios<0) then
+				close(55)
+				exit
+			endif
+		else
+			i=i+1
+			if(i*(nPar+3)>size(evDataAll)) exit
+			ltmp(1:nPar+2)=evDataAll((i-1)*(nPar+3)+1:i*(nPar+3)-1)
+			i1=int(evDataAll(i*(nPar+3)))
+		endif
 		
 		nPtPerNode(i1)=nPtPerNode(i1)+1
 		evdatp(i1,nPtPerNode(i1),1:nPar+2)=ltmp(1:nPar+2)
 		
 		!probability weight  	
-		wt(i1,nPtPerNode(i1))=exp(evdatp(i1,nPtPerNode(i1),nPar+1)+ &
-		evdatp(i1,nPtPerNode(i1),nPar+2)-globZ)
+		wt(i1,nPtPerNode(i1))=exp(evdatp(i1,nPtPerNode(i1),nPar+1)+evdatp(i1,nPtPerNode(i1),nPar+2)-gzloc)
 		if(wt(i1,nPtPerNode(i1))>0.d0) lognpost=lognpost-wt(i1,nPtPerNode(i1))*log(wt(i1,nPtPerNode(i1)))
     	enddo
-	close(55)
 	
 	allocate(posterior(nIter, nPar+2), physLive(nLpt, nPar+1), paramConstr(4*nPar))
 	paramConstr(1:2*nPar) = 0d0
 	maxLogLike = -huge(1d0)
-	logZ = globZ
+	logZ = gzloc
 	nSamples = nIter
 	maxWt = 0d0
 	m = 0
       	
  	!read in final remaining points & calculate their probability weights
-     	open(unit=55,file=livefile,status='old')
-	do i=1,nLpt
-        	read(55,*) ltmp(1:nPar+1),i1
+     	do i=1,nLpt
+		ltmp(1:nPar)=phyP(1:nPar,i)
+		ltmp(nPar+1)=l(i)
+		i1=phyID(i)
+		
 		physLive(i,1:nPar+1) = ltmp(1:nPar+1)
 		if( ltmp(nPar+1) > maxLogLike ) then
 			maxLogLike = ltmp(nPar+1)
@@ -170,23 +190,23 @@ contains
 		endif
 		nPtPerNode(i1)=nPtPerNode(i1)+1
             	evdatp(i1,nPtPerNode(i1),1:nPar+1)=ltmp(1:nPar+1)
-            	evdatp(i1,nPtPerNode(i1),nPar+2)=log(ic_vnow(i1)/dble(ic_npt(i1)))
-		wt(i1,nPtPerNode(i1))=exp(evdatp(i1,nPtPerNode(i1),nPar+1)+ &
-            	evdatp(i1,nPtPerNode(i1),nPar+2)-globZ)
+            	evdatp(i1,nPtPerNode(i1),nPar+2)=log(ic_vnow(i1)/dble(ic_nptloc(i1)))
+		wt(i1,nPtPerNode(i1))=exp(evdatp(i1,nPtPerNode(i1),nPar+1)+evdatp(i1,nPtPerNode(i1),nPar+2)-gzloc)
 		if(wt(i1,nPtPerNode(i1))>0.d0) lognpost=lognpost-wt(i1,nPtPerNode(i1))*log(wt(i1,nPtPerNode(i1)))
 	enddo
 	! global maxlike parameters
 	paramConstr(nPar*2+1:nPar*3) = physLive(indx,1:nPar)
-      	close(55)
       	
       	!no. of equally weighted posterior samples
       	npost=nint(exp(lognpost))
 	
       	!write the global posterior files
-      	open(55,file=postfile,form='formatted',status='replace')
-      	open(56,file=postfile4,form='formatted',status='replace')
-      	write(fmt,'(a,i4,a)')  '(',nPar+2,'E28.18)'
-      	write(fmt2,'(a,i4,a)')  '(',nPar+1,'E28.18)'
+	if(outfile) then
+      		open(55,file=postfile,form='formatted',status='replace')
+      		open(56,file=postfile4,form='formatted',status='replace')
+      		write(fmt,'(a,i4,a)')  '(',nPar+2,'E28.18)'
+      		write(fmt2,'(a,i4,a)')  '(',nPar+1,'E28.18)'
+	endif
       	do i=1,ic_n
       		do j=1,nPtPerNode(i)
 			m = m + 1
@@ -202,7 +222,7 @@ contains
 			paramConstr(nPar+1:2*nPar) = paramConstr(nPar+1:2*nPar) + (evdatp(i, j, 1:nPar)**2.0) * wt(i,j)
 			
             		if(wt(i,j)>1.d-99) then
-            			write(55,fmt) wt(i,j),-2.d0*evdatp(i,j,nPar+1),evdatp(i,j,1:nPar)
+            			if(outfile) write(55,fmt) wt(i,j),-2.d0*evdatp(i,j,nPar+1),evdatp(i,j,1:nPar)
                   	
       				!find the multiplicity
       				d1=wt(i,j)*npost
@@ -213,9 +233,11 @@ contains
             			!increase the multiplicity by one with probability d2
 				urv=ranmarns(0)
         	    		if(urv<=d2) k=k+1
-      				do i1=1,k
-            				write(56,fmt) evdatp(i,j,1:nPar+1)
-            			enddo
+				if(outfile) then
+      					do i1=1,k
+            					write(56,fmt) evdatp(i,j,1:nPar+1)
+            				enddo
+				endif
 			endif
 		enddo
 	enddo
@@ -225,107 +247,112 @@ contains
 	! global MAP parameters
 	paramConstr(nPar*3+1:nPar*4) = posterior(indx,1:nPar)
 	
-      	close(55)
-      	close(56)
+	if(outfile) then
+      		close(55)
+      		close(56)
       			
-	open(unit=57,file=statsFile,form='formatted',status='replace')
-      	!stats file
-	write(57,'(a,E28.18,a,E28.18)')"Global Evidence:",globZ,"  +/-",sqrt(globInfo/dble(nLpt))
-      		
-	!now the separated posterior samples
-      
-      	!generate the point set to be used by the constrained clustering algorithm
-      	nUncon=0
-      	nClst=0
-	i=0
-	j=1
-      	call genPoints(i,j,nPar)
-	
-	do i=1,nClst
-		temp(i,1)=ic_Z(clstrdNode(i))
-		temp(i,2)=ic_info(clstrdNode(i))
-		temp(i,3)=ic_npt(clstrdNode(i))
-	enddo
-	ic_Z(1:nClst)=temp(1:nClst,1)
-	ic_info(1:nClst)=temp(1:nClst,2)
-	ic_npt(1:nClst)=temp(1:nClst,3)
-      			
-	!now arrange the point set, constrained points first, unconstrained later
-	pNwt=0.d0
-	pwt=0.d0
-      	k=0
-      	do i=1,nClst
-		llike(i)=minval(consP(k+1:k+nCon(i),nPar+1))
-      		do j=1,nCon(i)
-      			k=k+1
-          		pts(1:nPar+2,k)=consP(k,1:nPar+2)
-			pwt(k,i)=1.d0
-		enddo
-	enddo
-      	do i=1,nUncon
-      		k=k+1
-      		pts(1:nPar+2,k)=unconsP(i,1:nPar+2)
-	enddo
-	
-	i1=0
-      	do
-		if(.false.) then
-			i1=i1+1
-      		
-			do i=1,k
-				pts2(1:ndim,i)=pts(1:ndim,i)
-				pts2(ndim+1,i)=pts(nPar+1,i)
-			enddo
+		open(unit=57,file=statsFile,form='formatted',status='replace')
+      		!stats file
+		write(57,'(a,E28.18,a,E28.18)')"Global Evidence:",gzloc,"  +/-",sqrt(ginfoloc/dble(nLpt))
+	      		
+		!now the separated posterior samples
+	      
+	      	!generate the point set to be used by the constrained clustering algorithm
+	      	nUncon=0
+	      	nClst=0
+		i=0
+		j=1
+	      	call genPoints(i,j,nPar,ic_reme)
 		
-      			!perform constrained clustering
-			i=nCdim
-			l1=.true.
-
-      			call GaussMixExpMaxLike(i,nClst,k,nCon(1:nClst),.true.,pts2(1:i,1:k), &
-      			pts(nPar+1:nPar+2,1:k),pwt(1:k,1:nClst),pNwt(1:k,1:nClst),ic_Z(1:nClst),llike(1:nClst),l1)
+		do i=1,nClst
+			temp(i,1)=ic_zloc(clstrdNode(i))
+			temp(i,2)=ic_infoloc(clstrdNode(i))
+			temp(i,3)=ic_nptloc(clstrdNode(i))
+		enddo
+		ic_zloc(1:nClst)=temp(1:nClst,1)
+		ic_infoloc(1:nClst)=temp(1:nClst,2)
+		ic_nptloc(1:nClst)=temp(1:nClst,3)
+	      			
+		!now arrange the point set, constrained points first, unconstrained later
+		pNwt=0.d0
+		pwt=0.d0
+	      	k=0
+	      	do i=1,nClst
+			llike(i)=minval(consP(k+1:k+nCon(i),nPar+1))
+	      		do j=1,nCon(i)
+	      			k=k+1
+	          		pts(1:nPar+2,k)=consP(k,1:nPar+2)
+				pwt(k,i)=1.d0
+			enddo
+		enddo
+	      	do i=1,nUncon
+	      		k=k+1
+	      		pts(1:nPar+2,k)=unconsP(i,1:nPar+2)
+		enddo
+		
+		i1=0
+	      	do
+			if(.false.) then
+				i1=i1+1
+	      		
+				do i=1,k
+					pts2(1:ndim,i)=pts(1:ndim,i)
+					pts2(ndim+1,i)=pts(nPar+1,i)
+				enddo
+			
+	      			!perform constrained clustering
+				i=nCdim
+				l1=.true.
+	
+	      			call GaussMixExpMaxLike(i,nClst,k,nCon(1:nClst),.true.,pts2(1:i,1:k), &
+	      			pts(nPar+1:nPar+2,1:k),pwt(1:k,1:nClst),pNwt(1:k,1:nClst),ic_zloc(1:nClst),llike(1:nClst),l1)
+			endif
+			
+			!calculate cluster properties
+			do i=1,nClst
+				call rGaussProp(k,nCdim,pts(1:nCdim,1:k),pts(nPar+1:nPar+2,1:k), &
+				pwt(1:k,i),pNwt(1:k,i),stMu(i,1:nCdim),stSigma(i,1:nCdim),ic_zloc(i))
+			enddo
+			
+			i=sum(nCon(1:nClst))
+			j=nCdim
+	
+			!if(.not.merge(nClst,j,nPar,i,k,nCon(1:nClst),pts(:,1:k),stMu(1:nClst,1:j), &
+			!stSigma(1:nClst,1:j),ic_zloc(1:nClst),Ztol,pwt(1:k,1:nClst),pNwt(1:k,1:nClst),llike(1:nClst))) exit
+			exit
+		enddo
+		
+		!open the output file
+		if(multimodal .and. outfile) then
+			!open(unit=56,file=strictSepFile,form='formatted',status='replace')
+	      		open(unit=55,file=sepFile,form='formatted',status='replace')
+			write(57,'(a)')
+	      		write(57,'(a)')"Local Mode Properties"
+	      		write(57,'(a)')"-------------------------------------------"
+	      		write(57,'(a)')
+			write(57,'(a,i12)')"Total Modes Found:",nClst
 		endif
 		
-		!calculate cluster properties
-		do i=1,nClst
-			call rGaussProp(k,nCdim,pts(1:nCdim,1:k),pts(nPar+1:nPar+2,1:k), &
-			pwt(1:k,i),pNwt(1:k,i),stMu(i,1:nCdim),stSigma(i,1:nCdim),ic_Z(i))
-		enddo
+		open(unit=58,file=summaryFile,status='unknown')
+		call genSepFiles(k,nPar,nClst,Ztol,pts,pNwt(1:k,1:nClst),nCon(1:nClst),ic_zloc(1:nClst),ic_infoloc(1:nClst), &
+		ic_nptloc(1:nClst),55,56,57,58,multimodal)
+		close(58)
 		
-		i=sum(nCon(1:nClst))
-		j=nCdim
-
-		!if(.not.merge(nClst,j,nPar,i,k,nCon(1:nClst),pts(:,1:k),stMu(1:nClst,1:j), &
-		!stSigma(1:nClst,1:j),ic_Z(1:nClst),Ztol,pwt(1:k,1:nClst),pNwt(1:k,1:nClst),llike(1:nClst))) exit
-		exit
-	enddo
-	
-	!open the output file
-	if(multimodal) then
-!	      	open(unit=56,file=strictSepFile,form='formatted',status='replace')
-      		open(unit=55,file=sepFile,form='formatted',status='replace')
-		write(57,'(a)')
-      		write(57,'(a)')"Local Mode Properties"
-      		write(57,'(a)')"-------------------------------------------"
-      		write(57,'(a)')
-		write(57,'(a,i12)')"Total Modes Found:",nClst
+	      	if(multimodal) close(55)
+	      	close(57)
 	endif
 	
-	open(unit=58,file=summaryFile,status='unknown')
-	call genSepFiles(k,nPar,nClst,Ztol,pts,pNwt(1:k,1:nClst),nCon(1:nClst),ic_Z(1:nClst),ic_info(1:nClst), &
-	ic_npt(1:nClst),55,56,57,58,multimodal)
-	close(58)
-	
-      	if(multimodal) close(55)
-      	close(57)
+	!error on global evidence
+	logZerr=sqrt(ginfoloc/dble(nLpt))
 	
 	! call the dumper
-	call dumper(nSamples, nLpt, nPar, physLive, posterior, paramConstr, maxLogLike, logZ)
+	call dumper(nSamples, nLpt, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
 
       	deallocate(branchp,evdatp,wt)
       	deallocate(nbranchp,nPtPerNode)
       	deallocate(pts2,pts,consP,unconsP,pwt,pNwt)
       	deallocate(ncon,nSamp,clstrdNode)
-	deallocate(check,ic_reme,ic_Z,ic_zold,ic_info,ic_npt,ic_vnow,temp)
+	deallocate(check,ic_zold,temp)
 	deallocate(stMu,stSigma,llike)
 	deallocate(posterior, physLive, paramConstr)
 
@@ -333,13 +360,14 @@ contains
   
 !------------------------------------------------------------------------
       
-  recursive subroutine genPoints(br,brNum,nPar)
+  recursive subroutine genPoints(br,brNum,nPar,ic_reme)
   
   	implicit none
       
       	integer br !branch to be analyzed
       	integer brNum !branching no. of the branch to be analyzed
 	integer nPar !dimensionality
+	logical ic_reme(:)
       	!work variables
       	integer i,j,k,i1,i2,node
 
@@ -382,7 +410,7 @@ contains
       		do i=1,nbranchp(node)
             		k=node
             		i1=i
-			call genPoints(k,i1,nPar)
+			call genPoints(k,i1,nPar,ic_reme)
 		enddo
 	endif
       
