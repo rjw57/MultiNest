@@ -1,42 +1,80 @@
 module nestwrapper
 
-!  Nested sampling includes
-   use Nested
-   use params
-   use like
-   implicit none
+! Nested sampling includes
+
+use Nested
+use params
+use like
    
- contains
+implicit none
+   
+contains
 
 !-----*-----------------------------------------------------------------
 
 subroutine nest_Sample
-   integer nclusters,context !total number of clusters found
-   integer maxNode !variables used by the posterior routine
+	
+	implicit none
+	
+   	integer nclusters				! total number of clusters found
+	integer context
+   	integer maxNode 				! variables used by the posterior routine
    
-   call nestRun(nest_mmodal,nest_ceff,nest_nlive,nest_tol,nest_efr,sdim,nest_nPar, &
-   nest_nClsPar,nest_maxModes,nest_updInt,nest_Ztol,nest_root,nest_rseed,nest_pWrap, &
-   nest_fb,nest_resume,getLogLike,context)
+   
+   	! calling MultiNest
+	
+   	call nestRun(nest_mmodal,nest_ceff,nest_nlive,nest_tol,nest_efr,sdim,nest_nPar, &
+   	nest_nClsPar,nest_maxModes,nest_updInt,nest_Ztol,nest_root,nest_rseed,nest_pWrap, &
+   	nest_fb,nest_resume,getLogLike,dumper,context)
 
 end subroutine nest_Sample
 
 !-----*-----------------------------------------------------------------
 
 ! Wrapper around Likelihood Function
-! Cube(1:n_dim) has nonphysical parameters
-! scale Cube(1:n_dim) & return the scaled parameters in Cube(1:n_dim) &
-! additional parameters in Cube(n_dim+1:nPar)
-! return the log-likelihood in lnew
-subroutine getLogLike(Cube,n_dim,nPar,lnew,context)
 
-   integer n_dim,nPar,context
-   real*8 lnew,Cube(nPar)
+subroutine getLogLike(Cube,n_dim,nPar,lnew,context)
+	
+	implicit none
+	
+	! Input arguments
+	integer n_dim 					! dimensionality (total number of free parameters) of the problem
+	integer nPar 					! total number of free plus derived parameters
+
+	!Input/Output arguments
+	double precision Cube(nPar) 			! on entry has the ndim parameters in unit-hypercube
+	 						! on exit, the physical parameters plus copy any derived parameters you want to store with the free parameters
+	 
+	! Output arguments
+	double precision lnew 				! loglikelihood
+	integer context					! not needed, any additional information user wants to pass
+	
    
-   !call your loglike function here   
-   !lnew=loglike(likeindx,Cube)
-   call slikelihood(Cube,lnew)
+   	
+	!call your loglike function here 
+	
+   	call slikelihood(Cube,lnew)
 
 end subroutine getLogLike
+
+!-----*-----------------------------------------------------------------
+
+! dumper, called after every updInt*10 iterations
+
+subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ)
+
+	implicit none
+
+	integer nSamples				! number of samples in posterior array
+	integer nlive					! number of live points
+	integer nPar					! number of parameters saved (physical plus derived)
+	double precision, pointer :: physLive(:,:)	! array containing the last set of live points
+	double precision, pointer :: posterior(:,:)	! array with the posterior distribution
+	double precision, pointer :: paramConstr(:)	! array with mean, sigmas, maxlike & MAP parameters
+	double precision maxLogLike			! max loglikelihood value
+	double precision logZ				! log evidence
+	
+end subroutine dumper
 
 !-----*-----------------------------------------------------------------
 

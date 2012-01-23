@@ -6,15 +6,15 @@ module xmeans_clstr
   implicit none
   
       integer n_dim
-      real*8 LogTwoPi
+      double precision LogTwoPi
       parameter(LogTwoPi=1.83787706641)
-      real*8 larg
+      double precision larg
       parameter(larg=huge(1.d0))
       !information about ellipses at each node
       integer numClstr,nCls,ptClstrd,maxClstr !total clusters found yet & total pts in clstrs yet
-      real*8, dimension(:,:), allocatable :: p,xclsMean,xclsEval,aux
-      real*8, dimension(:), allocatable :: xclsBIC,loglike,xclsVar,xclsVol,xclsKfac,xclsEff,xclsDetcov
-      real*8, dimension(:,:,:), allocatable :: xclsInvCov,xclsTMat,xclsCovmat,xclsEvec
+      double precision, dimension(:,:), allocatable :: p,xclsMean,xclsEval,aux
+      double precision, dimension(:), allocatable :: xclsBIC,loglike,xclsVar,xclsVol,xclsKfac,xclsEff,xclsDetcov
+      double precision, dimension(:,:,:), allocatable :: xclsInvCov,xclsTMat,xclsCovmat,xclsEvec
       integer, dimension(:), allocatable :: revcPos,xclsPos,ptInClstr
       integer, dimension(:,:), allocatable :: pt_Clstr
 
@@ -24,11 +24,11 @@ module xmeans_clstr
   subroutine doXmeans(points,npt,np,nClstr,ptClstr,cMean,cCovmat,cInvCov,cEval,cEvec,like,min_pt)
 	implicit none
       
-      real*8 points(:,:),like(:)
+      double precision points(:,:),like(:)
       integer npt,np !num of points & dimensionality
       integer nClstr !total clusters found
       integer ptClstr(:),min_pt
-      real*8 cMean(:,:),cCovmat(:,:,:),cInvCov(:,:,:),cEval(:,:),cEvec(:,:,:)
+      double precision cMean(:,:),cCovmat(:,:,:),cInvCov(:,:,:),cEval(:,:),cEvec(:,:,:)
       integer i,j
 
 	n_dim=np
@@ -72,9 +72,9 @@ module xmeans_clstr
   subroutine doXmeans5(points,npt,np,nClstr,ptClstr,ad,naux,auxa,min_pt)
       implicit none
       !input/output
-      real*8 points(:,:) !actual points which are rearranged after clustering
+      double precision points(:,:) !actual points which are rearranged after clustering
       			 !note: the clusters have shared points too
-      real*8 auxa(:,:) !auxilliary variables which are rearranged after clustering
+      double precision auxa(:,:) !auxilliary variables which are rearranged after clustering
       !input
       integer npt,np !num of points & dimensionality
       integer ad !no. of shared points required per cluster
@@ -137,14 +137,12 @@ module xmeans_clstr
   subroutine doXmeans8(points,like,npt,np,nClstr,ptClstr,ad,min_pt)
 	implicit none
       
-      real*8 points(:,:),like(:)
+      double precision points(:,:),like(:)
       integer npt,np !num of points & dimensionality
       integer nClstr !total clusters found
       integer ptClstr(:),min_pt
       integer i,j,maxec,k
-      integer nb !max no. of clusters
       integer ad !no. of shared points per cluster
-      integer mp !min points per cluster
 
       if(npt<2*min_pt) then
       	nClstr=1
@@ -200,7 +198,7 @@ module xmeans_clstr
   subroutine doXmeans6(points,npt,np,nClstr,ptClstr,naux,auxa,min_pt,maxC)
 	implicit none
       
-      real*8 points(:,:),auxa(:,:)
+      double precision points(:,:),auxa(:,:)
       integer npt,np !num of points & dimensionality
       integer naux !dimension of auxilliary array
       integer nClstr !total clusters found
@@ -245,7 +243,7 @@ module xmeans_clstr
   subroutine doXmeans7(points,npt,np,nClstr,ptClstr,min_pt)
 	implicit none
       
-      real*8 points(:,:)
+      double precision points(:,:)
       integer npt,np !num of points & dimensionality
       integer nClstr !total clusters found
       integer ptClstr(:),min_pt
@@ -287,7 +285,7 @@ module xmeans_clstr
   subroutine doGmeans(points,npt,np,nClstr,ptClstr,naux,auxa,min_pt,maxC)
 	implicit none
       
-      	real*8 points(:,:),auxa(:,:)
+      	double precision points(:,:),auxa(:,:)
       	integer npt,naux,np !num of points & dimensionality
       	integer nClstr !total clusters found
       	integer ptClstr(:),min_pt,maxC
@@ -330,7 +328,7 @@ module xmeans_clstr
   subroutine doGmeans2(points,npt,np,nClstr,ptClstr,min_pt)
 	implicit none
       
-      real*8 points(:,:)
+      double precision points(:,:)
       integer npt,np !num of points & dimensionality
       integer nClstr !total clusters found
       integer ptClstr(:),min_pt
@@ -370,20 +368,19 @@ module xmeans_clstr
   recursive subroutine Xmeans(pt,npt,like,min_pt)
     	implicit none
  
-	integer min_pt,npt,npt1 !num of points
-    	real*8 pt(:,:) !points
-      real*8 like(:) !likelihood values
-    	real*8 ptk(2,n_dim,npt)!points in clusters
-    	real*8 likek(2,npt)!loglike, to change order only
+	integer min_pt,npt !num of points
+    	double precision pt(:,:) !points
+      double precision like(:) !likelihood values
+    	double precision ptk(2,n_dim,npt)!points in clusters
+    	double precision likek(2,npt)!loglike, to change order only
       integer nptk(2) !no. of points in the clusters
     	integer cluster(npt) !cluster array having cluster num of each pt
     	integer i,j,ip
-      real*8 covar(n_dim,n_dim),covark(2,n_dim,n_dim),invcov(n_dim,n_dim),invcovk(2,n_dim,n_dim)
-    	real*8 evec(n_dim,n_dim),eveck(2,n_dim,n_dim),eval(n_dim),evalk(2,n_dim),detcov,detcovk(2)
-      real*8 mean(n_dim),meank(2,n_dim)
-      real*8 BIC1,BIC2 !BIC for 1 & 2 clusters respectively
+      double precision covar(n_dim,n_dim),covark(2,n_dim,n_dim),invcov(n_dim,n_dim),invcovk(2,n_dim,n_dim)
+    	double precision evec(n_dim,n_dim),eveck(2,n_dim,n_dim),eval(n_dim),evalk(2,n_dim),detcov,detcovk(2)
+      double precision mean(n_dim),meank(2,n_dim)
+      double precision BIC1,BIC2 !BIC for 1 & 2 clusters respectively
       integer i1
-      real*8 d1
       logical flag
       
       flag=.false.
@@ -495,21 +492,19 @@ module xmeans_clstr
   recursive subroutine Xmeans4(pt,npt,ad,min_pt)
     	implicit none
  
-	integer min_pt,npt,npt1 !num of points
+	integer min_pt,npt !num of points
       integer ad !no. of shared points required, returns the no. of shared points found
-      integer nb !num of breaks
-    	real*8 pt(:,:) !points
-    	real*8 ptk(npt/(n_dim+1),n_dim,npt+ad)!points in clusters
+    	double precision pt(:,:) !points
+    	double precision ptk(npt/(n_dim+1),n_dim,npt+ad)!points in clusters
       integer nptk(npt/(n_dim+1)) !no. of points in the clusters
     	integer cluster(npt) !cluster array having cluster num of each pt
     	integer i,j,ip,q
-      real*8 covar(n_dim,n_dim),covark(2,n_dim,n_dim),invcov(n_dim,n_dim),invcovk(2,n_dim,n_dim)
-    	real*8 evec(n_dim,n_dim),eveck(2,n_dim,n_dim),eval(n_dim),evalk(2,n_dim),detcov,detcovk(2)
-      real*8 mean(n_dim),meank(2,n_dim)
-      real*8 BIC1,BIC2 !BIC for 1 & 2 clusters respectively
+      double precision covar(n_dim,n_dim),covark(2,n_dim,n_dim),invcov(n_dim,n_dim),invcovk(2,n_dim,n_dim)
+    	double precision evec(n_dim,n_dim),eveck(2,n_dim,n_dim),eval(n_dim),evalk(2,n_dim),detcov,detcovk(2)
+      double precision mean(n_dim),meank(2,n_dim)
+      double precision BIC1,BIC2 !BIC for 1 & 2 clusters respectively
       integer i1
-      real*8 d1
-      integer ct,cluster2(npt/(n_dim+1),ad)
+      integer cluster2(npt/(n_dim+1),ad)
       logical flag
       
       flag=.false.
@@ -658,20 +653,18 @@ module xmeans_clstr
   recursive subroutine Xmeans5(ptf,tnpt,cluster,ad,naux,auxa,min_pt)
     	implicit none
  
-	integer min_pt,npt,npt1 !num of points
+	integer min_pt,npt !num of points
       integer ad !no. of shared points required, returns the no. of shared points found
       integer tnpt
-      integer nb !num of breaks
-    	real*8 ptf(:,:),pt(n_dim,tnpt) !points
-    	real*8 ptk(tnpt/(n_dim+1),n_dim,tnpt+ad)!points in clusters
+    	double precision ptf(:,:),pt(n_dim,tnpt) !points
+    	double precision ptk(tnpt/(n_dim+1),n_dim,tnpt+ad)!points in clusters
       integer nptk(tnpt/(n_dim+1)) !no. of points in the clusters
     	integer cluster(tnpt) !cluster array having cluster num of each pt
-    	integer i,j,ip,q,l
+    	integer i,j,ip
       integer i1
-      real*8 d1
-      integer ct,cluster2(tnpt/(n_dim+1),ad)
+      integer cluster2(tnpt/(n_dim+1),ad)
       integer naux
-      real*8 auxa(:,:),auxk(tnpt/(n_dim+1),naux,tnpt+ad)
+      double precision auxa(:,:),auxk(tnpt/(n_dim+1),naux,tnpt+ad)
       
       npt=tnpt
       pt(:,1:npt)=ptf(:,1:npt)
@@ -735,19 +728,17 @@ module xmeans_clstr
   recursive subroutine Xmeans8(nClsf,ptf,lkf,ptInClsf,tnpt,ad,min_pt)
     	implicit none
  
-	integer min_pt,npt,npt1 !num of points
+	integer min_pt,npt !num of points
       integer ad  !no. of shared points required, returns the no. of shared points found
       integer tnpt,nClsf,ptInClsf(:)
-      integer nb !num of breaks
-    	real*8 ptf(:,:),pt(n_dim,tnpt),lkf(:),lk(tnpt) !points & log-like
-    	real*8 ptk(tnpt/(n_dim+1),n_dim,tnpt+ad)!points in clusters
-    	real*8 likek(tnpt/(n_dim+1),tnpt+ad)!log-like of points in clusters
+    	double precision ptf(:,:),pt(n_dim,tnpt),lkf(:),lk(tnpt) !points & log-like
+    	double precision ptk(tnpt/(n_dim+1),n_dim,tnpt+ad)!points in clusters
+    	double precision likek(tnpt/(n_dim+1),tnpt+ad)!log-like of points in clusters
       integer nptk(tnpt/(n_dim+1)) !no. of points in the clusters
     	integer cluster(tnpt) !cluster array having cluster num of each pt
     	integer i,j,ip,q,l,m
       integer i1
-      real*8 d1
-      integer ct,cluster2(tnpt/(n_dim+1),ad)
+      integer cluster2(tnpt/(n_dim+1),ad)
       
       m=1
 	do l=1,nClsf
@@ -818,18 +809,17 @@ module xmeans_clstr
   recursive subroutine Xmeans6(pt,npt,naux,auxa,min_pt)
     	implicit none
  
-	integer min_pt,npt,naux,npt1 !num of points
-    	real*8 pt(:,:) !points
-      real*8 auxa(:,:) !auxilliary array
-    	real*8 ptk(2,n_dim,npt)!points in clusters
-    	real*8 auxk(2,naux,npt)!aux, to change order only
+	integer min_pt,npt,naux !num of points
+    	double precision pt(:,:) !points
+      double precision auxa(:,:) !auxilliary array
+    	double precision ptk(2,n_dim,npt)!points in clusters
+    	double precision auxk(2,naux,npt)!aux, to change order only
       integer nptk(2) !no. of points in the clusters
     	integer cluster(npt) !cluster array having cluster num of each pt
-      real*8 mean(3,n_dim),var(3)
+      double precision mean(3,n_dim),var(3)
     	integer i,j,ip
-      real*8 BIC1,BIC2 !BIC for 1 & 2 clusters respectively
+      double precision BIC1,BIC2 !BIC for 1 & 2 clusters respectively
       integer i1
-      real*8 d1
       logical flag
       
       flag=.false.
@@ -921,16 +911,15 @@ module xmeans_clstr
   recursive subroutine Xmeans7(pt,npt,min_pt)
     	implicit none
  
-	integer min_pt,npt,npt1 !num of points
-    	real*8 pt(:,:) !points
-    	real*8 ptk(2,n_dim,npt)!points in clusters
+	integer min_pt,npt !num of points
+    	double precision pt(:,:) !points
+    	double precision ptk(2,n_dim,npt)!points in clusters
       integer nptk(2) !no. of points in the clusters
     	integer cluster(npt) !cluster array having cluster num of each pt
-      real*8 mean(3,n_dim),var(3)
+      double precision mean(3,n_dim),var(3)
     	integer i,j,ip
-      real*8 BIC1,BIC2 !BIC for 1 & 2 clusters respectively
+      double precision BIC1,BIC2 !BIC for 1 & 2 clusters respectively
       integer i1
-      real*8 d1
       logical flag
       
       flag=.false.
@@ -1021,7 +1010,7 @@ module xmeans_clstr
   subroutine doXmeans9(points,npt,np,nClstr,ptClstr,ad,min_pt)
 	implicit none
       !input/output
-      real*8 points(:,:) !actual points which are rearranged after clustering
+      double precision points(:,:) !actual points which are rearranged after clustering
       			 !note: the clusters have shared points too
       !input
       integer npt,np !num of points & dimensionality
@@ -1084,18 +1073,16 @@ module xmeans_clstr
   recursive subroutine Xmeans9(ptf,tnpt,cluster,ad,min_pt)
     	implicit none
  
-	integer min_pt,npt,npt1 !num of points
+	integer min_pt,npt !num of points
       integer ad !no. of shared points required, returns the no. of shared points found
       integer tnpt
-      integer nb !num of breaks
-    	real*8 ptf(:,:),pt(n_dim,tnpt) !points
-    	real*8 ptk(tnpt/(n_dim+1),n_dim,tnpt+ad)!points in clusters
+    	double precision ptf(:,:),pt(n_dim,tnpt) !points
+    	double precision ptk(tnpt/(n_dim+1),n_dim,tnpt+ad)!points in clusters
       integer nptk(tnpt/(n_dim+1)) !no. of points in the clusters
     	integer cluster(tnpt) !cluster array having cluster num of each pt
-    	integer i,j,ip,q,l
+    	integer i,j,ip
       integer i1
-      real*8 d1
-      integer ct,cluster2(tnpt/(n_dim+1),ad)
+      integer cluster2(tnpt/(n_dim+1),ad)
       
       npt=tnpt
       pt(:,1:npt)=ptf(:,1:npt)
@@ -1155,19 +1142,19 @@ module xmeans_clstr
   recursive subroutine Gmeans(pt,npt,naux,auxa,min_pt)
     	implicit none
  
-	integer min_pt,npt,naux,npt1 !num of points
-    	real*8 pt(:,:) !points
-      real*8 auxa(:,:) !auxilliary points
-    	real*8 ptk(2,n_dim,npt)!points in clusters
-    	real*8 auxk(2,naux,npt)!loglike, to change order only
+	integer min_pt,npt,naux !num of points
+    	double precision pt(:,:) !points
+      double precision auxa(:,:) !auxilliary points
+    	double precision ptk(2,n_dim,npt)!points in clusters
+    	double precision auxk(2,naux,npt)!loglike, to change order only
       integer nptk(2) !no. of points in the clusters
     	integer cluster(npt) !cluster array having cluster num of each pt
-    	integer i,j,ip
+    	integer i,ip
       integer i1
-      real*8 alpha !confidence level for Anderson-Darlind test
+      double precision alpha !confidence level for Anderson-Darlind test
       parameter(alpha=0.0001)
-      real*8 mean(n_dim),meank(2,n_dim)
-      real*8 delMean(n_dim) !difference between the means of the two clusters
+      double precision mean(n_dim),meank(2,n_dim)
+      double precision delMean(n_dim) !difference between the means of the two clusters
       logical flag
       
       flag=.false.
@@ -1236,17 +1223,17 @@ module xmeans_clstr
   recursive subroutine Gmeans2(pt,npt,min_pt)
     	implicit none
  
-	integer min_pt,npt,npt1 !num of points
-    	real*8 pt(:,:) !points
-    	real*8 ptk(2,n_dim,npt)!points in clusters
+	integer min_pt,npt !num of points
+    	double precision pt(:,:) !points
+    	double precision ptk(2,n_dim,npt)!points in clusters
       integer nptk(2) !no. of points in the clusters
     	integer cluster(npt) !cluster array having cluster num of each pt
-    	integer i,j,ip
+    	integer i,ip
       integer i1
-      real*8 alpha !confidence level for Anderson-Darlind test
+      double precision alpha !confidence level for Anderson-Darlind test
       parameter(alpha=0.0001)
-      real*8 mean(n_dim),meank(2,n_dim)
-      real*8 delMean(n_dim) !difference between the means of the two clusters
+      double precision mean(n_dim),meank(2,n_dim)
+      double precision delMean(n_dim) !difference between the means of the two clusters
       logical flag
       
       flag=.false.
@@ -1311,13 +1298,13 @@ module xmeans_clstr
 !----------------------------------------------------------------------
 
   !calculate BIC for no clustering in the data
-  real*8 function calcBIC1(pt,npt,mean,invcov,detcov)
+  double precision function calcBIC1(pt,npt,mean,invcov,detcov)
 	implicit none
       integer npt !num of points
-      real*8 pt(:,:)
-      real*8 detcov !determinant of the covariance matrix
-      real*8 mean(:),invcov(:,:)
-      real*8 tpt(n_dim,npt),a,nd,nn
+      double precision pt(:,:)
+      double precision detcov !determinant of the covariance matrix
+      double precision mean(:),invcov(:,:)
+      double precision tpt(n_dim,npt),a,nd,nn
 	integer i,j,k
       
       nd=n_dim
@@ -1347,12 +1334,11 @@ module xmeans_clstr
 !----------------------------------------------------------------------
 
   !calculate BIC for no clustering in the data
-  real*8 function calcBIC1_iso(npt,variance)
+  double precision function calcBIC1_iso(npt,variance)
 	implicit none
       integer npt !num of points
-      real*8 variance,var
-      real*8 nd,nn
-	integer i,j,k
+      double precision variance,var
+      double precision nd,nn
       
       nd=n_dim
       nn=npt
@@ -1368,16 +1354,15 @@ module xmeans_clstr
 !----------------------------------------------------------------------
 
   !calculate BIC for clustering in the data
-  real*8 function calcBIC2(ptk,nptk,meank,invcovk,detcovk)
+  double precision function calcBIC2(ptk,nptk,meank,invcovk,detcovk)
 	implicit none
       integer nptk(2) !num of points
-      real*8 ptk(2,n_dim,nptk(1)+nptk(2))
-      real*8 detcovk(2) !determinant of the covariance matrix
-      real*8 meank(2,n_dim),invcovk(2,n_dim,n_dim)
-      real*8 tptk(2,n_dim,nptk(1)+nptk(2)),ak(2)
-      real*8 alpha,beta
+      double precision ptk(2,n_dim,nptk(1)+nptk(2))
+      double precision detcovk(2) !determinant of the covariance matrix
+      double precision meank(2,n_dim),invcovk(2,n_dim,n_dim)
+      double precision tptk(2,n_dim,nptk(1)+nptk(2)),ak(2)
 	integer i,j,k,l
-      real*8 nd,np1,np2,npt
+      double precision nd,np1,np2,npt
       
       np1=nptk(1)
       np2=nptk(2)
@@ -1413,13 +1398,13 @@ module xmeans_clstr
 !----------------------------------------------------------------------
 
   !calculate BIC for clustering in the data
-  real*8 function calcBIC2_iso(nptk,var)
+  double precision function calcBIC2_iso(nptk,var)
 	implicit none
       integer nptk(2) !num of points
-      real*8 var(2)
-      real*8 variance
-	integer i,j,k,l
-      real*8 nd,np1,np2,npt
+      double precision var(2)
+      double precision variance
+	integer i
+      double precision nd,np1,np2,npt
       
       np1=nptk(1)
       np2=nptk(2)
@@ -1439,14 +1424,14 @@ module xmeans_clstr
 !----------------------------------------------------------------------
 
   !calculate BIC for no clustering of the points constituting the given clusters
-  real*8 function caltBIC(cls1,cls2)
+  double precision function caltBIC(cls1,cls2)
 	implicit none
       integer cls1,cls2
       integer n1,n2,n !total num of points
-      real*8 mean(n_dim),covar(n_dim,n_dim),invcov(n_dim,n_dim),evec(n_dim,n_dim),eval(n_dim),detcov
+      double precision mean(n_dim),covar(n_dim,n_dim),invcov(n_dim,n_dim),evec(n_dim,n_dim),eval(n_dim),detcov
       integer i,j
       integer ind1,ind2!indices of starting points of the 2 clusters
-      real*8, dimension(:,:), allocatable :: ptt
+      double precision, dimension(:,:), allocatable :: ptt
       logical flag
       
       !find total number of points
@@ -1497,18 +1482,15 @@ module xmeans_clstr
   logical function AndersonDarling(npt,pt,delMean,alpha)
 	implicit none
       integer npt !no. of points
-      real*8 pt(n_dim,npt) !points
-      real*8 alpha !significance level
-      real*8 delMean(n_dim) !difference between the two cluster means
-      real*8 ppt(npt) !projected & normalized points
-      real*8 mean,sigma !mean & st.dev. of the projected & normalized points
-      real*8 A !Anderson Darling statistic
-      real*8 stn1,stn2
-      integer i,j,indx(1)
-      real*8 mode
-      integer*2 compare
-      real*8 temp
-      real*8 min
+      double precision pt(n_dim,npt) !points
+      double precision alpha !significance level
+      double precision delMean(n_dim) !difference between the two cluster means
+      double precision ppt(npt) !projected & normalized points
+      double precision mean,sigma !mean & st.dev. of the projected & normalized points
+      double precision A !Anderson Darling statistic
+      double precision stn1,stn2
+      integer i
+      double precision mode
       integer*8 nn,info
       
       mean=0.
@@ -1568,8 +1550,8 @@ module xmeans_clstr
 !----------------------------------------------------------------------
 
   INTEGER*2 FUNCTION COMPARE(N1, N2)
-	REAL*8 N1
-	REAL*8 N2
+	double precision N1
+	double precision N2
 
 	IF (N1 .LT. N2) THEN
 		COMPARE = -1
@@ -1596,23 +1578,23 @@ module xmeans_clstr
       	integer nCls !no. of clusters
       	integer npt !total no. of points
       	integer ncon(nCls) !no. constrained points in each cluster
-      	real*8 pt(ndim,npt) !points
-      	real*8 like(2,npt) !log-like & log of the dx
+      	double precision pt(ndim,npt) !points
+      	double precision like(2,npt) !log-like & log of the dx
       	logical norm !rescale the points so that all have the same range?
-	real*8 lowlike(nCls)
+	double precision lowlike(nCls)
       	logical switch !initialize the LAPACK eigenanalysis routines?
       
       	!output variables
-      	real*8 wt(npt,nCls) !probability weights of points for each cluster
-      	real*8 wtNorm(npt,nCls) !normalized probability weights of points for each cluster
-	real*8 locZ(nCls) !local evidence
+      	double precision wt(npt,nCls) !probability weights of points for each cluster
+      	double precision wtNorm(npt,nCls) !normalized probability weights of points for each cluster
+	double precision locZ(nCls) !local evidence
       
       	!work variables
-	integer i,j,k,count
-      	real*8 d1
-	real*8 pts(ndim,npt)
-      	real*8 mean(nCls,ndim),eval(nCls,ndim),evec(nCls,ndim,ndim),cwt(nCls)
-      	real*8 old_locZ(nCls),covmat(nCls,ndim,ndim),invcov(nCls,ndim,ndim),detcov(nCls)
+	integer i,k,count
+      	double precision d1
+	double precision pts(ndim,npt)
+      	double precision mean(nCls,ndim),eval(nCls,ndim),evec(nCls,ndim,ndim),cwt(nCls)
+      	double precision old_locZ(nCls),covmat(nCls,ndim,ndim),invcov(nCls,ndim,ndim),detcov(nCls)
       
       	n_dim=ndim
 	count=0
@@ -1633,7 +1615,7 @@ module xmeans_clstr
 	wtNorm=wt
 	do i=1,nCls
 		!calculate the evidence & normalized weights
-	    	call setWt(ndim,npt,pts,like,wtNorm(:,i),locZ(i),.true.)
+	    	call setWt(npt,like,wtNorm(:,i),locZ(i),.true.)
 		!now the Gaussian with normalized weights
             	call GaussProp(npt,ndim,pts,wt(:,i),wtNorm(:,i),cwt(i),mean(i,:),covmat(i,:,:), &
 			invcov(i,:,:),eval(i,:),evec(i,:,:),detcov(i),switch,.true.)
@@ -1659,7 +1641,7 @@ module xmeans_clstr
 		wtNorm=wt
             	do i=1,nCls
 			!calculate the evidence & normalized weights
-	    		call setWt(ndim,npt,pts,like,wtNorm(:,i),locZ(i),.true.)
+	    		call setWt(npt,like,wtNorm(:,i),locZ(i),.true.)
 			!now the Gaussian with normalized weights
             		call GaussProp(npt,ndim,pts,wt(:,i),wtNorm(:,i),cwt(i),mean(i,:),covmat(i,:,:), &
                   	invcov(i,:,:),eval(i,:),evec(i,:,:),detcov(i),.false.,.true.)
@@ -1681,20 +1663,20 @@ module xmeans_clstr
 !----------------------------------------------------------------------
   
   !returns the normalized normal probability for the given point
-  real*8 function normalProb(d,p,mean,invcov,detcov)
+  double precision function normalProb(d,p,mean,invcov,detcov)
   
   	implicit none
       
       !input variables
       integer d !dimensionality
-      real*8 p(d) !point
-      real*8 mean(d) !mean
-      real*8 invcov(d,d) !inverse covariance matrix
-      real*8 detcov !determinant of the covariance matrix
+      double precision p(d) !point
+      double precision mean(d) !mean
+      double precision invcov(d,d) !inverse covariance matrix
+      double precision detcov !determinant of the covariance matrix
       
       !work variables
-      integer i,j,k
-      real*8 a,tpt(d),pi
+      integer j,k
+      double precision a,tpt(d),pi
       
       pi=4.*atan(1.d0)
       
@@ -1716,22 +1698,19 @@ module xmeans_clstr
 !----------------------------------------------------------------------
   
   !returns the normalized normal probability for the points given a cluster
-  subroutine setWt(ndim,npt,pt,like,wt,locZ,flag)
+  subroutine setWt(npt,like,wt,locZ,flag)
   
   	implicit none
 	
 	!input variables
-	integer ndim !dimensionality
 	integer npt !no. of points
-	real*8 pt(ndim,npt) !points
-	real*8 like(2,npt) !log-like & log of dX of points
+	double precision like(2,npt) !log-like & log of dX of points
 	logical flag !set the weights
 	!input/output variables
-	real*8 wt(npt) !weights
-	real*8 locZ !local evidence
+	double precision wt(npt) !weights
+	double precision locZ !local evidence
 	!work variables
-	integer i,j
-	real*8 d1
+	integer j
 	
 	
 	locZ=-huge(1.d0)*epsilon(1.d0) !logZero
@@ -1758,20 +1737,20 @@ module xmeans_clstr
       !input variables
       integer nCls !no. of clusters
       integer d !dimensionality
-      real*8 p(d) !point
-      real*8 like !log-like of the point
-      real*8 lowlike(nCls) !lowest log-like of each cluster
-      real*8 mean(nCls,d) !mean
-      real*8 invcov(nCls,d,d) !inverse covariance matrix
-      real*8 detcov(nCls) !determinant of the covariance matrix
-      real*8 cwt(nCls) !cluster prior probabilities
+      double precision p(d) !point
+      double precision like !log-like of the point
+      double precision lowlike(nCls) !lowest log-like of each cluster
+      double precision mean(nCls,d) !mean
+      double precision invcov(nCls,d,d) !inverse covariance matrix
+      double precision detcov(nCls) !determinant of the covariance matrix
+      double precision cwt(nCls) !cluster prior probabilities
       
       !output variables
-      real*8 prob(nCls)
+      double precision prob(nCls)
       
       !work variables
       integer i,j,k
-      real*8 a(nCls),tpt(nCls,d),pi,d1,d2
+      double precision a(nCls),tpt(nCls,d),pi,d2
       logical flag
       
       pi=4.d0*atan(1.d0)
@@ -1826,20 +1805,20 @@ module xmeans_clstr
       	!input variables
       	integer n !no. of points
 	integer d !dimensionality
-	real*8 p(d,n) !points
-	real*8 wt(n) !probability weights of each point
-	real*8 wtNorm(n) !normalized (with the evidence) probability weights of each point
+	double precision p(d,n) !points
+	double precision wt(n) !probability weights of each point
+	double precision wtNorm(n) !normalized (with the evidence) probability weights of each point
 	logical switch !initialize the LAPACK eigenanalysis routine?
 	logical calcMu !calculate the mean?
       
       	!output variables
-      	real*8 mean(d) !mean
-      	real*8 covmat(d,d) !covariance matrix
-      	real*8 invcov(d,d) !inverse covariance matrix
-      	real*8 eval(d) !eigen values
-      	real*8 evec(d,d) !eigen vectors
-      	real*8 detcov !determinant of the covariance matrix
-      	real*8 cwt !no. of points in the cluster
+      	double precision mean(d) !mean
+      	double precision covmat(d,d) !covariance matrix
+      	double precision invcov(d,d) !inverse covariance matrix
+      	double precision eval(d) !eigen values
+      	double precision evec(d,d) !eigen vectors
+      	double precision detcov !determinant of the covariance matrix
+      	double precision cwt !no. of points in the cluster
       
       	!work variables
       	integer i
@@ -1884,11 +1863,11 @@ module xmeans_clstr
       integer npt !total no. of points
       
       !input/output varialbe
-      real*8 pt(ndim,npt) !points
+      double precision pt(ndim,npt) !points
       
       !work variables
       integer i
-      real*8 d1,d2
+      double precision d1,d2
       
       
       do i=1,ndim
@@ -1909,64 +1888,65 @@ module xmeans_clstr
 	!input variables
 	integer npt !total no. of points
 	integer ndim !dimensionality
-      	real*8 points(ndim,npt) !points
+      	double precision points(ndim,npt) !points
 	integer naux !dimensionality of auxiliary points
-	real*8 auxa(naux,npt) !auxiliary points
+	double precision auxa(naux,npt) !auxiliary points
 	integer min_pt !min no. of points per cluster
 	integer maxC !max no. of clusters
-	real*8 pVol !prior volume
-	real*8 cVol !current vol
+	double precision pVol !prior volume
+	double precision cVol !current vol
 	integer neVol
-	real*8 eVolFrac(2*neVol,2)
+	double precision eVolFrac(2*neVol,2)
 	integer nIter
-	real*8 dTol !volume tolerance
+	double precision dTol !volume tolerance
     	logical switch !initialize the LAPACK eigen analysis routines?
 	logical cSwitch
 	integer nCdim
 	logical rFlag !desperate acceptance
+	
 	!output variables
 	integer nClstr !total no. clusters found
 	integer ptClstr(maxC) !points in each cluster
-	real*8 meanx(maxC,ndim) !cluster means
-	real*8 covmatx(maxC,ndim,ndim) !cluster covarianc matrices
-	real*8 invcovx(maxC,ndim,ndim) !cluster inv covarianc matrices
-	real*8 tmatx(maxC,ndim,ndim) !cluster transformation matrices
-	real*8 evalx(maxC,ndim) !cluster eigenvalues
-	real*8 evecx(maxC,ndim,ndim) !cluster eigenvectors
-	real*8 kfacx(maxC) !cluster point enlargement factors
-	real*8 effx(maxC) !cluster volume enlargement factors
-	real*8 detcovx(maxC) !cluster covariance matrix determinants
-	real*8 volx(maxC) !cluster volumes
+	double precision meanx(maxC,ndim) !cluster means
+	double precision invcovx(maxC,ndim,ndim) !cluster inv covarianc matrices
+	double precision tmatx(maxC,ndim,ndim) !cluster transformation matrices
+	double precision evalx(maxC,ndim) !cluster eigenvalues
+	double precision evecx(maxC,ndim,ndim) !cluster eigenvectors
+	double precision kfacx(maxC) !cluster point enlargement factors
+	double precision effx(maxC) !cluster volume enlargement factors
+	double precision volx(maxC) !cluster volumes
 	logical Dinosaur !successful?
+	
 	!work variables
-	integer i,i2,j,k,n,n1,n2,n3,j1,k1,m,l,nptx(npt)
+	integer i,i2,j,k,n1,n2,n3,j1,k1,m,l
+	integer, allocatable :: nptx(:)
 	logical flag
-	real*8 mean(ndim),covmat(ndim,ndim),invcov(ndim,ndim),tmat(ndim,ndim)
-	real*8 evec(ndim,ndim),eval(ndim),kfac,eff,detcov,vol
-	real*8 d1,d2,p2(ndim,npt),aux2(naux,npt),pOne(ndim,1)
-	logical updEll(maxC)
-	integer updPt(maxC)
-	integer cluster(npt)
+	double precision, allocatable :: mean(:), covmat(:,:), invcov(:,:), tmat(:,:), evec(:,:), eval(:), p2(:,:), aux2(:,:)
+	double precision kfac,eff,detcov,vol
+	double precision d1,d2
+	logical, allocatable :: updEll(:)
+	integer, allocatable :: updPt(:), cluster(:)
 	integer nClstrk !total no. clusters found
-	integer ptClstrk(maxC) !points in each cluster
-	real*8 meank(maxC,ndim) !cluster means
-	real*8 covmatk(maxC,ndim,ndim) !cluster covarianc matrices
-	real*8 invcovk(maxC,ndim,ndim) !cluster inv covarianc matrices
-	real*8 tmatk(maxC,ndim,ndim) !cluster transformation matrices
-	real*8 evalk(maxC,ndim) !cluster eigenvalues
-	real*8 eveck(maxC,ndim,ndim) !cluster eigenvectors
-	real*8 kfack(maxC) !cluster point enlargement factors
-	real*8 effk(maxC) !cluster volume enlargement factors
-	real*8 detcovk(maxC) !cluster covariance matrix determinants
-	real*8 volk(maxC) !cluster volumes
-	real*8 pointsk(ndim,npt),auxk(naux,npt)
+	integer, allocatable :: ptClstrk(:) !points in each cluster
+	double precision, allocatable :: meank(:,:) !cluster means
+	double precision, allocatable :: covmatk(:,:,:) !cluster covarianc matrices
+	double precision, allocatable :: invcovk(:,:,:) !cluster inv covarianc matrices
+	double precision, allocatable :: tmatk(:,:,:) !cluster transformation matrices
+	double precision, allocatable :: evalk(:,:) !cluster eigenvalues
+	double precision, allocatable :: eveck(:,:,:) !cluster eigenvectors
+	double precision, allocatable :: kfack(:) !cluster point enlargement factors
+	double precision, allocatable :: effk(:) !cluster volume enlargement factors
+	double precision, allocatable :: detcovk(:) !cluster covariance matrix determinants
+	double precision, allocatable :: volk(:) !cluster volumes
+	double precision, allocatable :: pointsk(:,:), auxk(:,:)
 	!merge operation variables
 	integer mChk
-	real*8 dis(10,2)
-	logical gflag,check(maxC,maxC)
+	double precision, allocatable :: dis(:,:)
+	logical, allocatable :: check(:,:)
+	logical gflag
+	
 	
 	n_dim=ndim
-	check=.false.
 		
 	!sanity checks
 	if(min_pt<2) min_pt=2
@@ -1986,11 +1966,21 @@ module xmeans_clstr
 	numClstr=0
       	ptClstrd=0
 	
+	
+	allocate( updEll(maxC), check(maxC,maxC) )
+	allocate( mean(ndim), covmat(ndim,ndim), invcov(ndim,ndim), tmat(ndim,ndim), evec(ndim,ndim),eval(ndim), &
+	p2(ndim,npt), aux2(naux,npt) )
+	allocate( nptx(npt), updPt(maxC), cluster(npt), ptClstrk(maxC) )
+	allocate( meank(maxC,ndim), covmatk(maxC,ndim,ndim), invcovk(maxC,ndim,ndim), tmatk(maxC,ndim,ndim), &
+	evalk(maxC,ndim), eveck(maxC,ndim,ndim), kfack(maxC), effk(maxC), detcovk(maxC), volk(maxC), pointsk(ndim,npt), &
+	auxk(naux,npt), dis(10,2) )
+	
 	allocate(xclsMean(maxClstr,ndim),xclsInvcov(maxClstr,ndim,ndim),xclsCovmat(maxClstr,ndim,ndim), &
 	xclsTMat(maxClstr,ndim,ndim),xclsEval(maxClstr,ndim),xclsEvec(maxClstr,ndim,ndim),xclsKfac(maxClstr), &
 	xclsEff(maxClstr),xclsVol(maxClstr),p(ndim,npt),xclsDetcov(maxClstr), &
 	aux(naux,npt),ptInClstr(maxClstr))
       	
+	check = .false.
 	ptInClstr=0
 	
 	!first calculate the model with 1 cluster
@@ -2103,6 +2093,12 @@ module xmeans_clstr
 	
 	if(flag) then
 		Dinosaur=.false.
+		
+		deallocate( updEll, check )
+		deallocate( mean, covmat, invcov, tmat, evec, eval, p2, aux2 )
+		deallocate( nptx, updPt, cluster, ptClstrk )
+		deallocate( meank, covmatk, invcovk, tmatk, evalk, eveck, kfack, effk, detcovk, volk, pointsk, auxk, dis )
+		
 		deallocate(xclsMean,xclsInvcov,xclsTMat,xclsEval,xclsEvec,xclsKfac,xclsEff,xclsVol,xclsCovmat,xclsDetcov,p,aux,ptInClstr)
 		
 		!update the vol fractions of the past iterations
@@ -2137,8 +2133,7 @@ module xmeans_clstr
 					nptx(m)=nptx(m)+1
 					l=sum(ptInClstr(1:m-1))
 					d2=pVol*dble(nptx(m))/dble(npt)
-					call enlargeEll(ptInClstr(m),ndim,p(:,k+j), &
-					xclsMean(m,:),xclsEval(m,:),xclsInvcov(m,:,:),xclsKfac(m),xclsEff(m), &
+					call enlargeEll(ndim,p(:,k+j),xclsMean(m,:),xclsEval(m,:),xclsInvcov(m,:,:),xclsKfac(m),xclsEff(m), &
 					xclsVol(m),d2)
 					
 					updPt(k+j)=m
@@ -2331,7 +2326,13 @@ module xmeans_clstr
       		points(1:ndim,1:npt)=p(1:ndim,1:npt)
 	      	auxa(1:naux,1:npt)=aux(1:naux,1:npt)
 	endif
-      
+      	
+	
+	deallocate( updEll, check )
+	deallocate( mean, covmat, invcov, tmat, evec, eval, p2, aux2 )
+	deallocate( nptx, updPt, cluster, ptClstrk )
+	deallocate( meank, covmatk, invcovk, tmatk, evalk, eveck, kfack, effk, detcovk, volk, pointsk, auxk, dis )
+	
       	deallocate(xclsMean,xclsInvcov,xclsTMat,xclsEval,xclsEvec,xclsKfac,xclsEff, &
 	xclsVol,xclsCovmat,xclsDetcov,p,aux,ptInClstr)
       
@@ -2345,34 +2346,41 @@ module xmeans_clstr
 	
 	!input variables
 	integer npt !no. of points to analyze
-	real*8 pVol !total prior volume
+	double precision pVol !total prior volume
 	integer ndim !dimensionality
-      	real*8 pt(ndim,npt) !points
+      	double precision pt(ndim,npt) !points
 	integer naux !dimensionality of auxiliary points
-	real*8 auxa(naux,npt) !auxiliary points
+	double precision auxa(naux,npt) !auxiliary points
 	integer min_pt !min no. of points per cluster
-	real*8 mean(ndim) !overall mean
-	real*8 covmat(ndim,ndim) !overall covariance matrix
-	real*8 invcov(ndim,ndim) !overall inv covariance matrix
-	real*8 tmat(ndim,ndim) !overall transformation matrix
-	real*8 evec(ndim,ndim) !overall eigenvector
-	real*8 eval(ndim) !overall eigenvalues
-	real*8 detcov !overall covariance matrix determinant
-	real*8 kfac !overall cluster point enlargement factor
-	real*8 eff !overall cluster volume enlargement factor
-	real*8 vol !overall volume
+	double precision mean(ndim) !overall mean
+	double precision covmat(ndim,ndim) !overall covariance matrix
+	double precision invcov(ndim,ndim) !overall inv covariance matrix
+	double precision tmat(ndim,ndim) !overall transformation matrix
+	double precision evec(ndim,ndim) !overall eigenvector
+	double precision eval(ndim) !overall eigenvalues
+	double precision detcov !overall covariance matrix determinant
+	double precision kfac !overall cluster point enlargement factor
+	double precision eff !overall cluster volume enlargement factor
+	double precision vol !overall volume
 	logical cSwitch
 	integer nCdim
+	
 	!work variables
 	integer nk
 	parameter(nk=2)
-	integer i,j,k,d,cluster(npt),ip,nptk(nk),i1
+	integer i,k,d,ip
+	integer, allocatable :: cluster(:), nptk(:)
 	logical flag
-	real*8 meank(nk,ndim),covmatk(nk,ndim,ndim),invcovk(nk,ndim,ndim),tmatk(nk,ndim,ndim)
-	real*8 eveck(nk,ndim,ndim),evalk(nk,ndim),detcovk(nk),kfack(nk),effk(nk),volk(nk)
-	real*8 ptk(nk,ndim,npt),auxk(nk,naux,npt),d1
+	double precision, allocatable :: meank(:,:), covmatk(:,:,:), invcovk(:,:,:), tmatk(:,:,:)
+	double precision, allocatable :: eveck(:,:,:), evalk(:,:), detcovk(:),kfack(:), effk(:),volk(:)
+	double precision, allocatable :: ptk(:,:,:), auxk(:,:,:)
+	double precision d1
 	
 	if(npt==0) return
+	
+	allocate( cluster(npt), nptk(nk) )
+	allocate( meank(nk,ndim), covmatk(nk,ndim,ndim), invcovk(nk,ndim,ndim), tmatk(nk,ndim,ndim), eveck(nk,ndim,ndim), &
+	evalk(nk,ndim), detcovk(nk), kfack(nk), effk(nk), volk(nk), ptk(nk,ndim,npt), auxk(nk,naux,npt) )
 		
 	if(abs((vol-pVol)/pVol)<0.01 .or. npt<2*min_pt .or. nCls>=maxClstr) then
 		if(abs((vol-pVol)/pVol)<0.01) d=0
@@ -2465,6 +2473,9 @@ module xmeans_clstr
             	ptClstrd=ptClstrd+npt
             	numClstr=numClstr+1
       	endif
+	
+	deallocate( cluster, nptk )
+	deallocate( meank, covmatk, invcovk, tmatk, eveck, evalk, detcovk, kfack, effk, volk, ptk, auxk )
       
   end subroutine makeDino 
       
@@ -2478,38 +2489,39 @@ module xmeans_clstr
 	!input variables
 	integer npt !total no. of points
 	integer ndim !dimensionality
-      	real*8 points(ndim,npt) !points
+      	double precision points(ndim,npt) !points
 	integer naux !dimensionality of auxiliary points
-	real*8 auxa(naux,npt) !auxiliary points
+	double precision auxa(naux,npt) !auxiliary points
 	integer min_pt !min no. of points per cluster
 	integer maxC !max no. of clusters
-	real*8 pVol !prior volume
-	real*8 cVol !current vol
+	double precision pVol !prior volume
+	double precision cVol !current vol
 	integer neVol
-	real*8 eVolFrac(2*neVol,2)
+	double precision eVolFrac(2*neVol,2)
 	integer nIter
-	real*8 dTol !volume tolerance
+	double precision dTol !volume tolerance
     	logical switch !initialize the LAPACK eigen analysis routines?
 	logical rFlag !desperate acceptance
 	!output variables
 	integer nClstr !total no. clusters found
 	integer ptClstr(maxC) !points in each cluster
-	real*8 meanx(maxC,ndim) !cluster means
-	real*8 invcovx(maxC,ndim,ndim) !cluster inv covarianc matrices
-	real*8 tmatx(maxC,ndim,ndim) !cluster tranformation matrices
-	real*8 evalx(maxC,ndim) !cluster eigenvalues
-	real*8 evecx(maxC,ndim,ndim) !cluster eigenvectors
-	real*8 kfacx(maxC) !cluster point enlargement factors
-	real*8 effx(maxC) !cluster volume enlargement factors
-	real*8 volx(maxC) !cluster volumes
+	double precision meanx(maxC,ndim) !cluster means
+	double precision invcovx(maxC,ndim,ndim) !cluster inv covarianc matrices
+	double precision tmatx(maxC,ndim,ndim) !cluster tranformation matrices
+	double precision evalx(maxC,ndim) !cluster eigenvalues
+	double precision evecx(maxC,ndim,ndim) !cluster eigenvectors
+	double precision kfacx(maxC) !cluster point enlargement factors
+	double precision effx(maxC) !cluster volume enlargement factors
+	double precision volx(maxC) !cluster volumes
 	!work variables
-	integer i,j,k,nChkd,n
+	integer i,j,k,nChkd
 	logical flag
 	integer cluster(npt),nptk(maxC)
-	real*8 meank(maxC,ndim),covmatk(maxC,ndim,ndim),invcovk(maxC,ndim,ndim),tmatk(maxC,ndim,ndim)
-	real*8 evalk(maxC,ndim),eveck(maxC,ndim,ndim),kfack(maxC),effk(maxC),detcovk(maxC),volk(maxC)
-	real*8 pts(ndim,npt),auxk(naux,npt)
-
+	double precision meank(maxC,ndim),covmatk(maxC,ndim,ndim),invcovk(maxC,ndim,ndim),tmatk(maxC,ndim,ndim)
+	double precision evalk(maxC,ndim),eveck(maxC,ndim,ndim),kfack(maxC),effk(maxC),detcovk(maxC),volk(maxC)
+	double precision pts(ndim,npt),auxk(naux,npt)
+	
+	kDinosaur = .false.
 	n_dim=ndim
 	
 	!sanity checks
@@ -2595,43 +2607,46 @@ module xmeans_clstr
     	integer k !no. of clusters required
     	integer npt !no. of points
     	integer ndim !dimensionality
-    	real*8 pt(ndim,npt) !points
+    	double precision pt(ndim,npt) !points
 	integer naux !no. of aux parameters
-	real*8 auxa(naux,npt)
+	double precision auxa(naux,npt)
     	integer min_pt !min no. of points allowed in a cluster
-    	real*8 cVol !prior volume
+    	double precision cVol !prior volume
     
     	!input/output variables
     	integer nptk(k) !no. of points in each of k clusters
     	integer cluster(npt) !cluster membership of each point for k clusters
-    	real*8 meank(k,ndim) !input: means of k clusters
-    	real*8 covmatk(k,ndim,ndim)
-    	real*8 invcovk(k,ndim,ndim)
-    	real*8 tmatk(k,ndim,ndim)
-    	real*8 evalk(k,ndim)
-    	real*8 eveck(k,ndim,ndim)
-    	real*8 kfack(k)
-    	real*8 effk(k)
-    	real*8 detcovk(k)
-    	real*8 volk(k)
+    	double precision meank(k,ndim) !input: means of k clusters
+    	double precision covmatk(k,ndim,ndim)
+    	double precision invcovk(k,ndim,ndim)
+    	double precision tmatk(k,ndim,ndim)
+    	double precision evalk(k,ndim)
+    	double precision eveck(k,ndim,ndim)
+    	double precision kfack(k)
+    	double precision effk(k)
+    	double precision detcovk(k)
+    	double precision volk(k)
     	
     	!output variables
     	logical postDino !F if everything OK, T if something more needs to be done
     
     	!work variables
-    	integer i,j,x,i1,i2,indx(1),count,cls(2)
-    	real*8 d1,d2,h(k,npt),mdis(k,npt),ptk(ndim,npt),mu_tmp(2,ndim),auxk(naux,npt)
+    	integer i,j,i1,i2,indx(1),count
+    	double precision d1
+    	double precision, allocatable :: h(:,:), mdis(:,:), ptk(:,:), auxk(:,:)
     	logical doCal(k),flag
     	!ellipsoid properties
-    	integer nptx(k),clusterx(npt),cluster2(npt)
-    	real*8 meanx(k,ndim),covmatx(k,ndim,ndim),invcovx(k,ndim,ndim),tmatx(k,ndim,ndim),evalx(k,ndim)
-    	real*8 evecx(k,ndim,ndim),kfacx(k),effx(k),detcovx(k),volx(k)
-    	real*8 fVal(k),fTol
+    	integer, allocatable :: nptx(:), clusterx(:)
+    	double precision, allocatable :: meanx(:,:), covmatx(:,:,:), invcovx(:,:,:), tmatx(:,:,:), evalx(:,:)
+    	double precision, allocatable :: evecx(:,:,:), kfacx(:), effx(:), detcovx(:), volx(:), fVal(:)
+    	double precision fTol
 	
 	if(k==1) then
 		postDino=.false.
 		return
 	endif
+	
+	allocate( fVal(k) )
 	
 	fTol=20.d0
 	
@@ -2646,7 +2661,15 @@ module xmeans_clstr
 		endif
 	enddo
 	
-	if(.not.postDino) return
+	if(.not.postDino) then
+		deallocate(fVal)
+		return
+	else
+		allocate( h(k,npt), mdis(k,npt), ptk(ndim,npt), auxk(naux,npt) )
+		allocate( nptx(k), clusterx(npt) )
+		allocate( meanx(k,ndim), covmatx(k,ndim,ndim), invcovx(k,ndim,ndim), tmatx(k,ndim,ndim), evalx(k,ndim), &
+		evecx(k,ndim,ndim), kfacx(k), effx(k), detcovx(k), volx(k) )
+	endif
 	
 	!initialization
 	nptx=nptk
@@ -2809,6 +2832,10 @@ module xmeans_clstr
     	volk=volx
 	pt=ptk
 	auxa=auxk
+	
+	deallocate( h, mdis, ptk, auxk )
+	deallocate( nptx, clusterx )
+	deallocate( meanx, covmatx, invcovx, tmatx, evalx, evecx, kfacx, effx, detcovx, volx, fVal )
 	
 	
   end function postDino  

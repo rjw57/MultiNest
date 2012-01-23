@@ -17,14 +17,14 @@ contains
   subroutine kmeans(k,pt,npt,numdim,cluster,min_pt)
     implicit none
  
-    integer k,numdim,npt,npt1
-    real*8 pt(numdim,npt)
-    real*8 sigsq(k,numdim),means(k,numdim),wt(k),r(npt,k)
+    integer k,numdim,npt
+    double precision pt(numdim,npt)
+    double precision sigsq(k,numdim),means(k,numdim),wt(k),r(npt,k)
     integer cluster(npt)
-    real*8 sumr,totR(k),temp,covmat(numdim,numdim),mean(numdim)
+    double precision sumr,totR(k),temp,covmat(numdim,numdim),mean(numdim)
     integer i,j,indx(1),x,nochg,count,min_pt
     logical clstrd
-    real*8 urv
+    double precision urv
 
     if(k>npt/min_pt+1) k=npt/min_pt+1
 
@@ -108,15 +108,14 @@ contains
   subroutine kmeans2(k,pt,npt,numdim,cluster,min_pt)
     implicit none
  
-    integer k,numdim,npt,npt1
-    real*8 pt(numdim,npt)
-    real*8 sigsq(k),means(k,numdim),wt(k),r(npt,k)
+    integer k,numdim,npt
+    double precision pt(numdim,npt)
+    double precision sigsq(k),means(k,numdim),wt(k),r(npt,k)
     integer cluster(npt),old_cluster(npt)
-    real*8 sumr,totR(k),temp,covmat(numdim,numdim),mean(numdim),lmean(numdim),dist,newdist
-    integer i,j,indx(1),x,nochg,id,newx,min_pt
-    integer meanloc(k)!locations of means (index of the point)
+    double precision sumr,totR(k),temp,covmat(numdim,numdim),mean(numdim)
+    integer i,j,indx(1),x,nochg,min_pt
     logical clstrd
-    real*8 urv
+    double precision urv
     
     if(k>npt/min_pt+1) k=npt/min_pt+1
     clstrd=.false.
@@ -199,14 +198,14 @@ contains
   subroutine kmeans3(k,pt,npt,numdim,means,cluster,min_pt)
 	implicit none
  
-    	integer k,numdim,npt,npt1,i1,i2,i3
-    	real*8 pt(numdim,npt)
-    	real*8 means(k,numdim),lmean(numdim),dis(min_pt,2)
+    	integer k,numdim,npt,i1,i2,i3
+    	double precision pt(numdim,npt)
+    	double precision means(k,numdim),dis(min_pt,2)
     	integer cluster(npt),old_cluster(npt),r(npt,k),totR(k)
-    	real*8 temp,dist
+    	double precision temp,dist
     	integer i,j,x,nochg,scrap(k),min_pt
     	logical clstrd,flag
-    	real*8 urv,d1
+    	double precision urv,d1
 
     	if(k>npt/min_pt+1) k=npt/min_pt+1
 	
@@ -372,14 +371,14 @@ contains
     implicit none
  
     integer k,numdim,npt
-    real*8 pt(:,:)
-    real*8 means(k,numdim)
+    double precision pt(:,:)
+    double precision means(k,numdim)
     integer cluster(:)
     integer totR(k)
     integer i,j,x,m,min_pt
     logical clstrd
-    real*8 urv
-    real*8 distortion(k)!distortion of each cluster
+    double precision urv
+    double precision distortion(k)!distortion of each cluster
     integer indx(1)
     
     if(k>npt/min_pt+1) k=npt/min_pt+1
@@ -455,19 +454,17 @@ contains
 !----------------------------------------------------------------------
 
   !2-means with k=2 & clusters placed in their expected positions as the starting points
-  subroutine kmeans6(pt,npt,numdim,cluster,min_pt)
+  subroutine kmeans6(pt,npt,numdim,cluster)
     implicit none
  
     integer numdim,npt
-    real*8 pt(numdim,npt)
-    real*8 means(2,numdim)
+    double precision pt(numdim,npt)
+    double precision means(2,numdim)
     integer cluster(npt)
     integer totR(2)
-    integer i,j,x,min_pt
+    integer i,j,x
     logical clstrd
-    real*8 urv
-    integer indx(1)
-    real*8 covmat(numdim,numdim),evec(numdim,numdim),eval(numdim)
+    double precision covmat(numdim,numdim),evec(numdim,numdim),eval(numdim)
     
     !calculate the mean of the data
     do j=1,numdim
@@ -532,19 +529,18 @@ contains
     implicit none
  
     integer k,numdim,npt
-    real*8 pt(numdim,npt)
-    real*8 means(2,npt/(numdim+1),numdim),meanst(npt/(numdim+1),numdim)
-    real*8 mean(npt/(numdim+1),numdim)
+    double precision pt(numdim,npt)
+    double precision means(2,npt/(numdim+1),numdim),meanst(npt/(numdim+1),numdim)
+    double precision mean(npt/(numdim+1),numdim)
     integer cls(2,npt),clst(npt),cluster(npt)
     integer totR(2,npt/(numdim+1)),totRt(npt/(numdim+1))!total points in each cluster
     integer i,j,x,m,min_pt
     logical clstrd
-    real*8 urv
     !distortion of each cluster & total distortion of the recent two iterations
-    real*8 distortion(2,npt/(numdim+1)),totDistor(2),distor(npt/(numdim+1))
+    double precision distortion(2,npt/(numdim+1)),totDistor(2),distor(npt/(numdim+1))
     integer indx(1)
-    real*8 f(npt/(numdim+1)),fmin,a(npt/(numdim+1))!evaluation function
-    real*8 S(npt/(numdim+1))!total distortion
+    double precision f(npt/(numdim+1)),fmin,a(npt/(numdim+1))!evaluation function
+    double precision S(npt/(numdim+1))!total distortion
     integer count!counter for evaluation function
     
     if(k>npt/min_pt+1) k=npt/min_pt+1
@@ -583,7 +579,7 @@ contains
       meanst(:,:)=means(2,:,:) 
       x=m-1 
       j=indx(1)
-      call kmeansDis(x,pt,npt,numdim,clst,j,totRt,distor,meanst,min_pt)
+      call kmeansDis(x,pt,npt,numdim,clst,j,totRt,distor,meanst)
       cls(1,:)=clst(:)
       totR(1,:)=totRt(:)
       means(1,:,:)=meanst(:,:)
@@ -597,7 +593,7 @@ contains
       		totRt(:)=totR(2,:)
      	 		meanst(:,:)=means(2,:,:)
                   x=m-1
-                  call kmeansDis(x,pt,npt,numdim,clst,i,totRt,distor,meanst,min_pt)
+                  call kmeansDis(x,pt,npt,numdim,clst,i,totRt,distor,meanst)
                   if(sum(distor(1:m))<totDistor(1)) then
                   	cls(1,:)=clst(:)
       			totR(1,:)=totRt(:)
@@ -660,17 +656,17 @@ contains
     implicit none
  
     integer k,numdim,npt
-    real*8 pt(:,:)
-    real*8 means(npt/min_p+10,numdim)
+    double precision pt(:,:)
+    double precision means(npt/min_p+10,numdim)
     integer cluster(:)
     integer totR(npt/min_p+10),min_p
-    integer i,j,x,m,q,r,s,k0
-    logical clstrd,ltmp
-    real*8 urv
-    !real*8 distortion(k)!distortion of each cluster
+    integer i,j,x,m,q,r,k0
+    logical clstrd
+    double precision urv
+    !double precision distortion(k)!distortion of each cluster
     integer indx(1),indx2(1)
-    real*8 adis(npt)!for keeping a record of the point's distances
-    real*8 dis1,dis2,dis(npt,2)
+    double precision adis(npt)!for keeping a record of the point's distances
+    double precision dis1,dis2,dis(npt,2)
     integer ad,nc,cluster2(:,:),cc(npt),cpt(npt)
     
     !distortion=0.
@@ -866,16 +862,16 @@ contains
 	implicit none
  
     	integer k,numdim,npt
-    	real*8 pt(:,:)
-    	real*8 means(npt/min_p+10,numdim)
+    	double precision pt(:,:)
+    	double precision means(npt/min_p+10,numdim)
     	integer cluster(npt)
     	integer totR(npt/min_p+10),min_p
-    	integer i,j,x,m,q,r,s,k0
-    	logical clstrd,ltmp
-    	real*8 urv
+    	integer i,j,x,m,q,k0
+    	logical clstrd
+    	double precision urv
     	integer indx(1),indx2(1)
-    	real*8 adis(npt)!for keeping a record of the point's distances
-    	real*8 dis1,dis2,dis(npt,2)
+    	double precision adis(npt)!for keeping a record of the point's distances
+    	double precision dis1,dis2
     
 	means=0.
     	totR=0
@@ -1008,13 +1004,13 @@ contains
     implicit none
  
     integer k,numdim,npt
-    real*8 pt(numdim,npt)
-    real*8 means(k,numdim),wt(k),r(npt,k)
+    double precision pt(numdim,npt)
+    double precision means(k,numdim),wt(k),r(npt,k)
     integer cluster(npt),min_pt
-    real*8 sumr,totR(k),temp,covmat(k,numdim,numdim),mean(numdim)
+    double precision sumr,totR(k),temp,covmat(k,numdim,numdim),mean(numdim)
     integer i,j,indx(1),x,nochg,count,q
     logical clstrd
-    real*8 urv
+    double precision urv
 	
     if(k>npt/min_pt+1) k=npt/min_pt+1
     clstrd=.false.
@@ -1093,11 +1089,11 @@ contains
     !input variables
     integer k !no. of clusters required
     integer npt !no. of points
-    real*8 like(npt) !scaled log-like
+    double precision like(npt) !scaled log-like
     integer ndim !dimensionality
-    real*8 pt(ndim,npt) !points
+    double precision pt(ndim,npt) !points
     integer min_pt !min no. of points allowed in a cluster
-    real*8 pVol !prior volume
+    double precision pVol !prior volume
     logical cSwitch
     integer nCdim
     
@@ -1105,29 +1101,31 @@ contains
     integer nptk(k) !input: no. of points in each of k-1 clusters, output: no. of points in each of k clusters
     integer cluster(npt) !input: cluster membership of each point for k-1 clusters, 
     		    !output: cluster membership of each point for k clusters
-    real*8 meank(k,ndim) !input: means of k-1 clusters, output: means of k clusters
-    real*8 covmatk(k,ndim,ndim) !input: covmat of k-1 clusters, output: covmat of k clusters
-    real*8 invcovk(k,ndim,ndim) !input: invcov of k-1 clusters, output: invcov of k clusters
-    real*8 tmatk(k,ndim,ndim) !input: tmat of k-1 clusters, output: tmat of k clusters
-    real*8 evalk(k,ndim) !input: eval of k-1 clusters, output: eval of k clusters
-    real*8 eveck(k,ndim,ndim) !input: evec of k-1 clusters, output: evec of k clusters
-    real*8 kfack(k) !input: kfac of k-1 clusters, output: kfac of k clusters
-    real*8 effk(k) !input: eff of k-1 clusters, output: eff of k clusters
-    real*8 detcovk(k) !input: detcov of k-1 clusters, output: detcov of k clusters
-    real*8 volk(k) !input: vol of k-1 clusters, output: vol of k clusters
-    real*8 fVol !volume of the father ellipsoid
+    double precision meank(k,ndim) !input: means of k-1 clusters, output: means of k clusters
+    double precision covmatk(k,ndim,ndim) !input: covmat of k-1 clusters, output: covmat of k clusters
+    double precision invcovk(k,ndim,ndim) !input: invcov of k-1 clusters, output: invcov of k clusters
+    double precision tmatk(k,ndim,ndim) !input: tmat of k-1 clusters, output: tmat of k clusters
+    double precision evalk(k,ndim) !input: eval of k-1 clusters, output: eval of k clusters
+    double precision eveck(k,ndim,ndim) !input: evec of k-1 clusters, output: evec of k clusters
+    double precision kfack(k) !input: kfac of k-1 clusters, output: kfac of k clusters
+    double precision effk(k) !input: eff of k-1 clusters, output: eff of k clusters
+    double precision detcovk(k) !input: detcov of k-1 clusters, output: detcov of k clusters
+    double precision volk(k) !input: vol of k-1 clusters, output: vol of k clusters
+    double precision fVol !volume of the father ellipsoid
     
     !output variables
     integer Dmeans !0 if found a better partition, 1 if found a partition but not better, 2 if couldn't partition
     
     !work variables
-    integer i,j,x,i1,i2,i3,indx(1),count,gcount,cls(2)
-    real*8 d1,d2,h(k,npt),mdis(k,npt),ptk(ndim+1,npt),mu_tmp(2,ndim+1)
-    logical doCal(k),flag,broken(k)
+    integer i,j,x,i1,i2,indx(1),count,gcount,cls(2)
+    double precision, allocatable :: h(:,:),mdis(:,:),ptk(:,:),mu_tmp(:,:)
+    double precision d1,d2
+    logical flag
+    logical, allocatable :: doCal(:), broken(:)
     !ellipsoid properties
-    integer nptx(k),clusterx(npt),cluster2(npt)
-    real*8 meanx(k,ndim),covmatx(k,ndim,ndim),invcovx(k,ndim,ndim),tmatx(k,ndim,ndim),evalx(k,ndim)
-    real*8 evecx(k,ndim,ndim),kfacx(k),effx(k),detcovx(k),volx(k)
+    integer, allocatable :: nptx(:), clusterx(:),cluster2(:)
+    double precision, allocatable :: meanx(:,:),covmatx(:,:,:),invcovx(:,:,:),tmatx(:,:,:),evalx(:,:)
+    double precision, allocatable :: evecx(:,:,:),kfacx(:),effx(:),detcovx(:),volx(:)
     
     
     !sanity check
@@ -1135,6 +1133,12 @@ contains
     	Dmeans=2
 	return
     endif
+    
+    
+    allocate( h(k,npt), mdis(k,npt), ptk(ndim+1,npt), mu_tmp(2,ndim+1), meanx(k,ndim), covmatx(k,ndim,ndim), &
+    invcovx(k,ndim,ndim), tmatx(k,ndim,ndim), evalx(k,ndim), evecx(k,ndim,ndim), kfacx(k),effx(k), detcovx(k), volx(k) )
+    allocate( doCal(k), broken(k) )
+    allocate( nptx(k), clusterx(npt), cluster2(npt) )
     
     !initialization
     nptx=nptk
@@ -1167,7 +1171,7 @@ contains
     	enddo
     
     	!if none of the ellipsoids can be split then return
-    	if(.not.flag) return
+    	if(.not.flag) exit
 	
     	broken(j)=.true.
 	
@@ -1429,8 +1433,12 @@ contains
 			exit
 		endif
 	enddo
-	if(Dmeans==0) return
+	if(Dmeans==0) exit
     enddo
+    
+    deallocate( h, mdis, ptk, mu_tmp, meanx, covmatx, invcovx, tmatx, evalx, evecx, kfacx, effx, detcovx, volx )
+    deallocate( doCal, broken )
+    deallocate( nptx, clusterx, cluster2 )
     
 	
   end function Dmeans  
@@ -1445,12 +1453,12 @@ contains
     !input variables
     integer ndim !dinemsionality
     integer n1,n2 !no. of points in each ellipsoid
-    real*8 mdis1,mdis2 !Mahalanobis distance of the point from both ellipsoids
-    real*8 detcov1,detcov2 !determinant of the covariance matrices of the ellipsoids
-    real*8 kfac1,kfac2 !overall enlargement factors of the ellipsoids
+    double precision mdis1,mdis2 !Mahalanobis distance of the point from both ellipsoids
+    double precision detcov1,detcov2 !determinant of the covariance matrices of the ellipsoids
+    double precision kfac1,kfac2 !overall enlargement factors of the ellipsoids
     
     !output variables
-    real*8 delF
+    double precision delF
     
     
     delF=(((n1/(n1-1.))**3)*(1.-mdis1/(n1-1.))-1.)*sqrt(detcov1*(kfac1**(ndim)))/ &
@@ -1466,19 +1474,19 @@ contains
   !Incremental K-means with a given cluster 'm' to be split, returns means & distortions 
   !(Pham, Dimov, Nguyen, 2005, "Incremental K-means Algorithm")
   !(Pham, Dimov, Nguyen, 2005, "Selection of K in K-means Clustering")
-  subroutine kmeansDis(k,pt,npt,numdim,cluster,m,totR,distortion,means,min_pt)
+  subroutine kmeansDis(k,pt,npt,numdim,cluster,m,totR,distortion,means)
     implicit none
  
     integer k,numdim,npt
-    real*8 pt(numdim,npt)
-    real*8 means(:,:)
+    double precision pt(numdim,npt)
+    double precision means(:,:)
     integer cluster(npt)
     integer totR(:)!total points in each cluster
     integer m!cluster to be split
-    integer i,j,x,min_pt
+    integer i,j,x
     logical clstrd
-    real*8 urv
-    real*8 distortion(:)!distortion of each cluster
+    double precision urv
+    double precision distortion(:)!distortion of each cluster
     
     if(k==0) then
     	cluster=1
@@ -1540,8 +1548,8 @@ contains
   subroutine cal_means(numdim,npt,p,mean)
     implicit none
     integer numdim,npt
-    real*8 p(numdim,npt)
-    real*8 mean(numdim)
+    double precision p(numdim,npt)
+    double precision mean(numdim)
     integer i,j
 
     mean=0.

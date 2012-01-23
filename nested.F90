@@ -7,6 +7,7 @@ module Nested
   use kmeans_clstr
   use xmeans_clstr
   use posterior
+  use priors
   implicit none
 
 #ifdef MPI
@@ -15,7 +16,6 @@ module Nested
 #endif
   integer my_rank
   integer maxCls,maxeCls
-  integer nthreads !total no. of processors available
   integer mpi_nthreads !total no. of mpi processors
   integer min_pt,totPar
   integer nCdims !total no. of parameters on which clustering should be done
@@ -23,28 +23,29 @@ module Nested
   integer ndims ! Number of dimensions
   integer nsc_def !no. of iterations per every sub-clustering step
   integer updInt !update interval
-  real*8 Ztol !lowest local evidence for which samples to produce
-  real*8 tol ! tolerance at end
-  real*8 ef
+  double precision Ztol !lowest local evidence for which samples to produce
+  double precision tol ! tolerance at end
+  double precision ef
   logical multimodal ! multimodal or unimodal sampling
   logical ceff ! constant efficiency?
   integer numlike,globff
-  real*8 logZero
-  parameter(logZero=-huge(1.d0)*epsilon(1.d0))
+  double precision logZero
+  parameter(logZero=-1d10)
   logical fback,resumeFlag,dlive,genLive,dino
   !output files name
   character(LEN=100)physname,broot,rname,resumename,livename,evname
   !output file units
   integer u_ev,u_resume,u_phys,u_live
-  real*8 gZ,ginfo !total log(evidence) & info
+  double precision gZ,ginfo !total log(evidence) & info
   integer count,sCount
   logical, dimension(:), allocatable :: pWrap
   logical mWrap,aWrap !whether to do wraparound for mode separation
+  logical debug, prior_warning
 
 contains
   
   subroutine nestRun(nest_mmodal,nest_ceff,nest_nlive,nest_tol,nest_ef,nest_ndims,nest_totPar,nest_nCdims,maxClst, &
-  nest_updInt,nest_Ztol,nest_root,seed,nest_pWrap,nest_fb,nest_resume,loglike,context)
+  nest_updInt,nest_Ztol,nest_root,seed,nest_pWrap,nest_fb,nest_resume,loglike,dumper,context)
         
   	implicit none
         
@@ -52,21 +53,30 @@ contains
 	integer maxClst,nest_nsc,nest_totPar,nest_nCdims,nest_pWrap(*)
 	logical nest_mmodal,nest_fb,nest_resume,nest_ceff
 	character(LEN=100) nest_root
-	real*8 nest_tol,nest_ef,nest_Ztol
+	double precision nest_tol,nest_ef,nest_Ztol
 	
 	INTERFACE
     		!the likelihood function
     		subroutine loglike(Cube,n_dim,nPar,lnew,context_pass)
 			integer n_dim,nPar,context_pass
-			real*8 lnew,Cube(nPar)
+			double precision lnew,Cube(nPar)
 		end subroutine loglike
     	end INTERFACE
+	
+	INTERFACE
+		!the user dumper function
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ)
+			integer nSamples, nlive, nPar
+			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
+			double precision maxLogLike, logZ
+		end subroutine dumper
+	end INTERFACE
 	
 #ifdef MPI
 	!MPI initializations
 	call MPI_INIT(errcode)
 	if (errcode/=MPI_SUCCESS) then
-     		write(*,*)'Error starting MPI program. Terminating.'
+     		write(*,*)'Error starting MPI. Terminating.'
      		call MPI_ABORT(MPI_COMM_WORLD,errcode)
   	end if
 	call MPI_COMM_RANK(MPI_COMM_WORLD, my_rank, errcode)
@@ -83,10 +93,15 @@ contains
 	ndims=nest_ndims
       	totPar=nest_totPar
 	nCdims=nest_nCdims
+	debug=.false.
+	prior_warning=.true.
       	if(nCdims>ndims) then
-		if(my_rank==0) write(*,*)"ERROR: nCdims can not be greater than ndims. Aborting"
+		if(my_rank==0) then
+			write(*,*)"ERROR: nCdims can not be greater than ndims."
+			write(*,*)"Aborting"
+		endif
 #ifdef MPI
-		call MPI_FINALIZE(errcode)
+		call MPI_ABORT(MPI_COMM_WORLD,errcode)
 #endif
             	stop
 	endif
@@ -134,9 +149,12 @@ contains
 		min_pt=ndims+1
 	elseif(ceff) then
 		if(ef>1d0) then
-			if(my_rank==0) write(*,*)"Can not undersample in constant efficiency mode . Aborting"
+			if(my_rank==0) then
+				write(*,*)"ERROR: Can not undersample in constant efficiency mode."
+				write(*,*)"Aborting"
+			endif
 #ifdef MPI
-			call MPI_FINALIZE(errcode)
+			call MPI_ABORT(MPI_COMM_WORLD,errcode)
 #endif
             		stop
 		endif
@@ -173,13 +191,13 @@ contains
 		endif
       
 		write(*,*)"*****************************************************"
-		write(*,*)"MultiNest v2.7"
+		write(*,*)"MultiNest v2.8"
       		write(*,*)"Copyright Farhan Feroz & Mike Hobson"
-      		write(*,*)"Release June 2009"
+      		write(*,*)"Release Jun 2010"
 		write(*,*)
       		write(*,'(a,i4)')" no. of live points = ",nest_nlive
       		write(*,'(a,i4)')" dimensionality = ",nest_ndims
-      		if(resumeFlag) write(*,'(a)')" resuming from previous run"
+      		if(resumeFlag) write(*,'(a)')" resuming from previous job"
       		write(*,*)"*****************************************************"
         
 		if (fback) write (*,*) 'Starting MultiNest'
@@ -192,110 +210,181 @@ contains
 		endif
 	endif
 	
-	call Nestsample(loglike,context)
+	call Nestsample(loglike, dumper)
 	deallocate(pWrap)
       	call killRandomNS()
+#ifdef MPI
+	call MPI_FINALIZE(errcode)
+#endif
 
   end subroutine nestRun
 
 !----------------------------------------------------------------------
 
-  subroutine Nestsample(loglike,context)
-    
-    implicit none
-    
-    real*8 p(ndims,nlive+1) !live points
-    real*8 phyP(totPar,nlive+1) !physical live points
-    real*8 l(nlive+1) !log-likelihood
-    real*8 vnow1!current vol
-    logical live_points
-    character(len=100) fmt
-    integer np,i,j,context
-    real*8 d1,d2,d3,d4
-    integer i1
+  subroutine Nestsample(loglike, dumper)
+	
+	implicit none
+	
+	double precision, allocatable :: p(:,:), phyP(:,:) !live points
+	double precision, allocatable :: l(:) !log-likelihood
+	double precision vnow1!current vol
+	double precision ltmp(totPar+2)
+	character(len=100) fmt
+	integer np,i,j,k,ios
 
-    
-    INTERFACE
-    		!the likelihood function
-    		subroutine loglike(Cube,n_dim,nPar,lnew,context_pass)
+	
+	INTERFACE
+		!the likelihood function
+		subroutine loglike(Cube,n_dim,nPar,lnew,context_pass)
 			integer n_dim,nPar,context_pass
-			real*8 lnew,Cube(nPar)
+			double precision lnew,Cube(nPar)
 		end subroutine loglike
-    end INTERFACE
+	end INTERFACE
+	
+	INTERFACE
+		!the user dumper function
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ)
+			integer nSamples, nlive, nPar
+			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
+			double precision maxLogLike, logZ
+		end subroutine dumper
+	end INTERFACE
+	
+	
+	allocate( p(ndims,nlive+1), phyP(totPar,nlive+1), l(nlive+1) )
 
-    if(my_rank==0) then
-    	np=ndims
-    	globff=0
-    	numlike=0
-    	vnow1=1.d0
+	if(my_rank==0) then
+		np=ndims
+		globff=0
+		numlike=0
+		vnow1=1.d0
 
-    	write(fmt,'(a,i5,a)')  '(',np+1,'E20.12)'
-    
-    	genLive=.true.
-    
-    	if(resumeflag) then
-    		!check if the last run was aborted during the live points generation
-    		open(unit=u_resume,file=resumename,status='old')
-    		read(u_resume,*)genLive
-    		close(u_resume)
-    	endif
-    
-    	gZ=logZero
-    	ginfo=0.d0
-    endif
+		write(fmt,'(a,i5,a)')  '(',np+1,'E20.12)'
+	
+		genLive=.true.
+	
+		if(resumeflag) then
+			!check if the last run was aborted during the live points generation
+			open(unit=u_resume,file=resumename,status='old')
+			read(u_resume,*)genLive
+			
+			if( .not.genLive ) then
+				read(u_resume,*)i,j,j,j
+		
+				if( j /= nlive ) then
+				  	write(*,*)"ERROR: no. of live points in the resume file is not equal to the the no. passed to nestRun."
+					write(*,*)"Aborting"
+#ifdef MPI
+					call MPI_ABORT(MPI_COMM_WORLD,errcode)
+#endif
+					stop
+				endif
+			endif
+				close(u_resume)
+		
+			if( .not.genLive ) then
+				j = 0
+				open(unit=u_ev,file=evname,status='old') 
+				write(fmt,'(a,i2.2,a)')  '(',totPar+2,'E20.12,i3)'
+				do
+					read(55,*,IOSTAT=ios) ltmp(1:totPar+2),k
+				
+					!end of file?
+					if(ios<0) exit
+				
+					j = j + 1
+				enddo
+			
+				close(u_ev)
+			
+				if( j + nlive /= i ) then
+					write(*,*)"ERROR: no. of points in ev.dat file is not equal to the no. specified in resume file."
+					write(*,*)"Aborting"
+#ifdef MPI
+					call MPI_ABORT(MPI_COMM_WORLD,errcode)
+#endif
+					stop
+				endif
+			endif
+		
+		endif
+	
+		gZ=logZero
+		ginfo=0.d0
+	endif
 
 #ifdef MPI
-    call MPI_BARRIER(MPI_COMM_WORLD,errcode)
-    call MPI_BCAST(genLive,1,MPI_LOGICAL,0,MPI_COMM_WORLD,errcode)
+	call MPI_BARRIER(MPI_COMM_WORLD,errcode)
+	call MPI_BCAST(genLive,1,MPI_LOGICAL,0,MPI_COMM_WORLD,errcode)
 #endif
-    
-    if(genLive) then
-    	if(my_rank==0 .and. fback) write(*,*) 'generating live points'
+	
+	if(genLive) then
+		if(my_rank==0 .and. fback) write(*,*) 'generating live points'
 		
-    	call gen_initial_live(p,phyP,l,loglike,context)
+		call gen_initial_live(p,phyP,l,loglike,dumper)
+	
+		if(my_rank==0) then
+			globff=nlive
+			numlike=nlive
+	  		if(fback) write(*,*) 'live points generated, starting sampling'
+		endif
+	endif
+
+#ifdef MPI
+	call MPI_BARRIER(MPI_COMM_WORLD,errcode)
+#endif
+	
+	call clusteredNest(p,phyP,l,loglike,dumper)
 	
 	if(my_rank==0) then
-    		globff=nlive
-    		numlike=nlive
-      		if(fback) write(*,*) 'live points generated, starting sampling'
+		write(*,*)"ln(ev)=",gZ,"+/-",sqrt(ginfo/dble(nlive))
+		write(*,'(a,i12)')' Total Likelihood Evaluations: ', numlike
+		write(*,*)"Sampling finished. Exiting MultiNest"
+		setBlk=.false.
 	endif
-    endif
-
-#ifdef MPI
-    call MPI_BARRIER(MPI_COMM_WORLD,errcode)
-#endif
-    
-    call clusteredNest(p,phyP,l,loglike,context)
-    
-    if(my_rank==0) then
-	write(*,*)"ln(ev)=",gZ,"+/-",sqrt(ginfo/dble(nlive))
-    	write(*,'(a,i12)')' Total Likelihood Evaluations: ', numlike
-    	write(*,*)"Sampling finished. Exiting MultiNest"
-	setBlk=.false.
-    endif
+	
+	deallocate( p, phyP, l )
 
   end subroutine Nestsample
 
 !----------------------------------------------------------------------
 
-  subroutine gen_initial_live(p,phyP,l,loglike,context)
+  subroutine gen_initial_live(p,phyP,l,loglike,dumper)
     
 	implicit none
     
-    	integer i,context,j,iostatus,idum,k,m,nptPerProc,nGen,nstart,nend
-    	real*8 temp,pnewP(ndims,10),phyPnewP(totPar,10),lnewP(10)
-    	real*8 p(ndims,nlive+1),phyP(totPar,nlive+1),l(nlive+1),tmp_l
-    	integer count,id
+    	integer i,j,iostatus,idum,k,m,nptPerProc,nGen,nstart,nend
+    	double precision, allocatable :: pnewP(:,:), phyPnewP(:,:), lnewP(:)
+    	double precision p(ndims,nlive+1), phyP(totPar,nlive+1), l(nlive+1)
+    	integer id
     	character(len=100) fmt,fmt2
+#ifdef MPI
+	double precision, allocatable ::  tmpl(:), tmpp(:,:), tmpphyP(:,:)
+	integer q
+#endif
     
     	INTERFACE
     		!the likelihood function
     		subroutine loglike(Cube,n_dim,nPar,lnew,context_pass)
 			integer n_dim,nPar,context_pass
-			real*8 lnew,Cube(nPar)
+			double precision lnew,Cube(nPar)
 		end subroutine loglike
     	end INTERFACE
 	
+	INTERFACE
+		!the user dumper function
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ)
+			integer nSamples, nlive, nPar
+			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
+			double precision maxLogLike, logZ
+		end subroutine dumper
+	end INTERFACE
+	
+	allocate( pnewP(ndims,10), phyPnewP(totPar,10), lnewP(10) )
+#ifdef MPI
+	allocate( tmpl(10), tmpp(ndims,10), tmpphyP(totPar,10) )
+#endif
+
 	if(my_rank==0) then
 	
     		open(unit=u_resume,file=resumename,form='formatted',status='replace')
@@ -317,7 +406,8 @@ contains
             			if(iostatus<0) then
             				i=i-1
                   			if(i>nlive) then
-                  				write(*,*)"more than ",nlive," points in the live points file"
+						write(*,*)"ERROR: more than ",nlive," points in the live points file."
+						write(*,*)"Aborting"
 #ifdef MPI
 						call MPI_ABORT(MPI_COMM_WORLD,errcode)
 #endif
@@ -347,8 +437,8 @@ contains
     		j=i
 		nend=i
 		
-		nGen=nlive-j
-		nptPerProc=nGen/mpi_nthreads
+		nGen = nlive - j
+		nptPerProc = ceiling( dble(nGen) / dble(mpi_nthreads) )
 	endif
 	
 #ifdef MPI
@@ -362,11 +452,24 @@ contains
             		genLive=.false.
     			resumeFlag=.false.
 		endif
-            	return
-	elseif(nGen<0) then
-      		if(my_rank==0) write(*,*)"ERROR: live points files have more live points than required. Aborting"
+		
+		deallocate( pnewP, phyPnewP, lnewP )
 #ifdef MPI
-            	call MPI_FINALIZE(errcode)
+		deallocate( tmpl, tmpp, tmpphyP )
+#endif
+	
+		close(u_live)
+		close(u_phys)
+		
+            	return
+		
+	elseif(nGen<0) then
+      		if(my_rank==0) then
+			write(*,*)"ERROR: live points files have more live points than required."
+			write(*,*)"Aborting"
+		endif
+#ifdef MPI
+            	call MPI_ABORT(MPI_COMM_WORLD,errcode)
 #endif
             	stop
 	endif
@@ -414,10 +517,17 @@ contains
 #ifdef MPI				
 				!receive the points from other nodes
 				do m=1,mpi_nthreads-1
-					call MPI_RECV(l(nend+1:nend+i),i,MPI_DOUBLE_PRECISION,m,m,MPI_COMM_WORLD,mpi_status,errcode)
-					call MPI_RECV(p(1:ndims,nend+1:nend+i),i*ndims,MPI_DOUBLE_PRECISION,m,m,MPI_COMM_WORLD,mpi_status,errcode)
-					call MPI_RECV(phyP(1:totPar,nend+1:nend+i),i*totPar,MPI_DOUBLE_PRECISION,m,m,MPI_COMM_WORLD,mpi_status,errcode)
-					nend=nend+i
+					call MPI_RECV(tmpl(1:i),i,MPI_DOUBLE_PRECISION,m,m,MPI_COMM_WORLD,mpi_status,errcode)
+					call MPI_RECV(tmpp(1:ndims,1:i),i*ndims,MPI_DOUBLE_PRECISION,m,m,MPI_COMM_WORLD,mpi_status,errcode)
+					call MPI_RECV(tmpphyP(1:totPar,1:i),i*totPar,MPI_DOUBLE_PRECISION,m,m,MPI_COMM_WORLD,mpi_status,errcode)
+					do q = 1 , i
+						if( nend + 1 <= nlive ) then
+							l(nend + 1) = tmpl(q)
+							p(1 : ndims, nend + 1) = tmpp(1 : ndims, q)
+							phyP(1 : totPar, nend + 1) = tmpphyP(1 : totPar, q)
+							nend = nend + 1
+						endif
+					enddo
 				enddo
 #endif
 				
@@ -431,26 +541,17 @@ contains
 		if(k==nptPerProc) exit
 	enddo
 	
-	!now generate the leftover points on the root node
-	if(my_rank==0) then
-		nstart=nend+1
-		do i=nstart,nlive
-            		do
-				call getrandom(ndims,p(:,i),id)  ! start points
-				phyP(1:ndims,i)=p(1:ndims,i)
-				call loglike(phyP(:,i),ndims,totPar,l(i),id+1)
-                  		if(l(i)>logZero) exit
-			enddo
-			write(u_live,fmt) p(1:ndims,i),l(i)
-            		write(u_phys,fmt2) phyP(:,i),l(i),1
-		enddo
-    
-    		close(u_live)
-   		close(u_phys)
-    
-		genLive=.false.
-    		resumeFlag=.false.
-	endif
+	
+		
+	deallocate( pnewP, phyPnewP, lnewP )
+#ifdef MPI
+	deallocate( tmpl, tmpp, tmpphyP )
+#endif
+
+    	close(u_live)
+   	close(u_phys)
+	genLive=.false.
+    	resumeFlag=.false.
 #ifdef MPI
 	call MPI_BARRIER(MPI_COMM_WORLD,errcode)
 #endif
@@ -464,8 +565,7 @@ contains
     implicit none
     
     integer, intent(in) :: n
-    real*8, intent(out) :: x(:)
-    real*8 u(n), g(n)
+    double precision, intent(out) :: x(:)
     integer i,id
     
     ! --- uniform prior ----
@@ -477,33 +577,32 @@ contains
 
 !----------------------------------------------------------------------
   
-  subroutine clusteredNest(p,phyP,l,loglike,context)
+  subroutine clusteredNest(p,phyP,l,loglike,dumper)
   	
 	implicit none
 	
 	
 	!input variables
 	
-	real*8 p(ndims,nlive+1) !live points
-	real*8 phyP(totPar,nlive+1) !physical live points
-	real*8 l(nlive+1) !log-likelihood
-	integer context
+	double precision p(ndims,nlive+1) !live points
+	double precision phyP(totPar,nlive+1) !physical live points
+	double precision l(nlive+1) !log-likelihood
 	
 	
 	!work variables
 	
 	!misc
-	integer i, j, k, r, m, n, j1, i1, i2, i3, i4, j2, k1, ff, sff, n1, n2, q, nd, nd_i, nd_j, iostatus
-	integer eswitchff(maxCls), num_old, escount(maxCls), dmin(maxCls)
-	real*8 d1, d2, d3, d4, d5, urv
-	real*8 h, logX, vprev, vnext, shrink !prior volume
-	real*8 mar_r !marginal acceptance rate
-	real*8 gZOld !global evidence & info
+	integer i, j, k, m, n, j1, i1, i2, i3, i4, ff, sff, n1, n2, q, nd, nd_i, nd_j, iostatus
+	integer num_old
+	integer, allocatable :: eswitchff(:), escount(:), dmin(:)
+	double precision d1, d2, d3, d4, d5, urv
+	double precision h, logX, vprev, vnext, shrink !prior volume
+	double precision mar_r !marginal acceptance rate
+	double precision gZOld !global evidence & info
 	integer maxIter !max no. of iterations
 	parameter(maxIter=200000)
-	real*8 kfac, eff
 	logical eswitch,peswitch,cSwitch !whether to do ellipsoidal sampling or not
-	logical remFlag, acpt, lg1, flag, flag2
+	logical remFlag, acpt, flag, flag2
 	integer funit1, funit2 !file units
 	character(len=100) fName1, fName2 !file names
 	character(len=100) fmt,fmt1
@@ -511,67 +610,86 @@ contains
 	!diagnostics for determining when to do eigen analysis
 	integer neVol
 	parameter(neVol=4)
-	real*8, dimension(:), allocatable :: totVol, x1, x2, y1, y2, slope, intcpt, cVolFrac, pVolFrac
-	real*8, dimension(:,:,:), allocatable :: eVolFrac
+	double precision, dimension(:), allocatable :: totVol, x1, x2, y1, y2, slope, intcpt, cVolFrac, pVolFrac
+	double precision, dimension(:,:,:), allocatable :: eVolFrac
 	
 	!info for output file update
-	real*8 evData(updInt,totPar+3)
+	double precision, allocatable :: evData(:,:)
 	
 	!isolated cluster info
 	integer ic_n !no. of nodes
-	integer ic_sc(maxCls), ic_npt(maxCls)
-	logical ic_done(0:maxCls)
-	integer, dimension(:),  allocatable :: ic_fNode, ic_nsc, ic_nBrnch
-	real*8, dimension(:,:,:),  allocatable :: ic_brnch, ic_llimits, ic_plimits
-	real*8 ic_climits(maxCls,ndims,2), ic_volFac(maxCls)
-	real*8, dimension(:),  allocatable :: ic_Z, ic_info, ic_vnow, ic_hilike, ic_inc
-	real*8, dimension(:,:),  allocatable :: ic_eff
+	integer, allocatable :: ic_sc(:), ic_npt(:)
+	logical, allocatable :: ic_done(:)
+	integer, dimension(:), allocatable :: ic_fNode, ic_nsc, ic_nBrnch
+	double precision, dimension(:,:,:),  allocatable :: ic_brnch, ic_llimits, ic_plimits
+	double precision, allocatable :: ic_climits(:,:,:), ic_volFac(:)
+	double precision, dimension(:),  allocatable :: ic_Z, ic_info, ic_vnow, ic_hilike, ic_inc
+	double precision, dimension(:,:),  allocatable :: ic_eff
 	logical, dimension(:),  allocatable :: ic_reme, ic_rFlag, ic_chk
  	logical modeFound
+	
+	!means & standard deviations of the live points (for prior edge detection)
+	double precision, dimension(:,:), allocatable :: ic_mean, ic_sigma
+	double precision lPts(ndims)
 	
 	!sub-cluster properties
 	integer sc_n !no. of sub-clusters
 	integer, dimension(:), allocatable :: sc_npt, nptk, nptx ,sc_node, nodek, sck
-	real*8, dimension(:,:), allocatable :: meank, sc_eval, evalk
-	real*8, dimension(:,:,:), allocatable :: sc_invcov, invcovk, sc_evec, eveck, tMatk
-	real*8, dimension(:), allocatable :: kfack, volk, effk
-	real*8 sc_mean(maxeCls,ndims), sc_tmat(maxeCls,ndims,ndims)
-	real*8 sc_kfac(maxeCls), sc_eff(maxeCls), sc_vol(maxeCls)
+	double precision, dimension(:,:), allocatable :: meank, sc_eval, evalk
+	double precision, dimension(:,:,:), allocatable :: sc_invcov, invcovk, sc_evec, eveck, tMatk
+	double precision, dimension(:), allocatable :: kfack, volk, effk
+	double precision, allocatable :: sc_mean(:,:), sc_tmat(:,:,:), sc_kfac(:), sc_eff(:), sc_vol(:)
 	
 	!auxiliary points (to be re-arranged with main points during clustering)
 	integer naux !dimensionality of aux points 
-	real*8, dimension(:,:), allocatable :: aux, pt
+	double precision, dimension(:,:), allocatable :: aux, pt
 	
 	!rejected point info
-	real*8 lowlike !lowest log-like
-	real*8 lowp(ndims), lowphyP(totPar) !point with the lowlike
+	double precision lowlike !lowest log-like
+	double precision, allocatable :: lowp(:), lowphyP(:) !point with the lowlike
 	integer indx(1) !point no. of lowlike
 	
 	!new point
-	real*8 pnew(ndims), phyPnew(totPar),lnew ! new point
-	real*8, dimension(:,:,:), allocatable :: pnewa, phyPnewa
-	real*8, dimension(:,:), allocatable :: lnewa
+	double precision lnew
+	double precision, allocatable :: pnew(:), phyPnew(:) ! new point
+	double precision, dimension(:,:,:), allocatable :: pnewa, phyPnewa
+	double precision, dimension(:,:), allocatable :: lnewa
 	integer, dimension(:), allocatable :: rIdx
 	integer, dimension(:,:), allocatable :: sEll
 	logical, dimension(:), allocatable :: remain
 	
 	!mode separation
 	integer nCdim
-	
-	!debug
-	logical debug
 	      
 	INTERFACE
     		!the likelihood function
     		subroutine loglike(Cube,n_dim,nPar,lnew,context_pass)
 			integer n_dim,nPar,context_pass
-			real*8 lnew,Cube(nPar)
+			double precision lnew,Cube(nPar)
 		end subroutine loglike
       	end INTERFACE
 	
+	INTERFACE
+		!the user dumper function
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ)
+			integer nSamples, nlive, nPar
+			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
+			double precision maxLogLike, logZ
+		end subroutine dumper
+	end INTERFACE
+	
+	
+	allocate( eswitchff(maxCls), escount(maxCls), dmin(maxCls) )
+	allocate( evData(updInt,totPar+3) )
+	allocate( ic_sc(maxCls), ic_npt(maxCls) )
+	allocate( ic_done(0:maxCls) )
+	allocate( ic_climits(maxCls,ndims,2), ic_volFac(maxCls) )
+	allocate( sc_mean(maxeCls,ndims), sc_tmat(maxeCls,ndims,ndims), sc_kfac(maxeCls), sc_eff(maxeCls), sc_vol(maxeCls) )
+	allocate( lowp(ndims), lowphyP(totPar) )
+	allocate( pnew(ndims), phyPnew(totPar) )
+	
 	
 	!initializations
-	debug=.false.
 	ic_done=.false.
 	ic_npt=nlive
 	ic_climits(:,:,2)=1d0
@@ -601,6 +719,7 @@ contains
 		sEll(maxCls,mpi_nthreads),remain(maxCls),rIdx(maxCls))
 		allocate(totVol(maxCls),eVolFrac(maxCls,neVol*2,neVol),x1(maxCls),x2(maxCls),y1(maxCls), &
 		y2(maxCls),slope(maxCls),intcpt(maxCls),cVolFrac(maxCls),pVolFrac(maxCls))
+		if( prior_warning ) allocate( ic_mean(maxCls, ndims), ic_sigma(maxCls, ndims) )
 	
 		!global logZ = log(0)
 		gZ=logZero
@@ -690,8 +809,8 @@ contains
             			if(iostatus<0) then
             				i=i-1
                   			if(i<nlive) then
-                  				write(*,*)"ERROR: live points file has less than ",nlive," points"
-						write(*,*)"aborting"
+                  				write(*,*)"ERROR: live points file has less than ",nlive," points."
+						write(*,*)"Aborting"
 #ifdef MPI
 						call MPI_ABORT(MPI_COMM_WORLD,errcode)
 #endif
@@ -700,8 +819,8 @@ contains
                   			exit
 				endif
 				if(i>nlive) then
-					write(*,*)"ERROR: live points file has greater than ",nlive," points"
-					write(*,*)"aborting"
+					write(*,*)"ERROR: live points file has greater than ",nlive," points."
+					write(*,*)"Aborting"
 #ifdef MPI
 					call MPI_ABORT(MPI_COMM_WORLD,errcode)
 #endif
@@ -719,8 +838,8 @@ contains
             			if(iostatus<0) then
             				i=i-1
                   			if(i<nlive) then
-                  				write(*,*)"ERROR: phys live points file has less than ",nlive," points"
-						write(*,*)"aborting"
+                  				write(*,*)"ERROR: phys live points file has less than ",nlive," points."
+						write(*,*)"Aborting"
 #ifdef MPI
 						call MPI_ABORT(MPI_COMM_WORLD,errcode)
 #endif
@@ -729,8 +848,8 @@ contains
                   			exit
 				endif
 				if(i>nlive) then
-					write(*,*)"ERROR: phys live points file has greater than ",nlive," points"
-					write(*,*)"aborting"
+					write(*,*)"ERROR: phys live points file has greater than ",nlive," points."
+					write(*,*)"Aborting"
 #ifdef MPI
 					call MPI_ABORT(MPI_COMM_WORLD,errcode)
 #endif
@@ -747,7 +866,7 @@ contains
 			ic_hilike(i)=maxval(l(j+1:j+ic_npt(i)))
 			lowlike=minval(l(j+1:j+ic_npt(i)))
 			ic_inc(i)=ic_hilike(i)+log(ic_vnow(i))-ic_Z(i)
-			if(ic_npt(i)<ndims+1 .or. lowlike==ic_hilike(i) .or. (ic_inc(i)<log(tol) .and. globff-nlive>50)) then
+			if(ic_npt(i)<ndims+1 .or. abs(lowlike-ic_hilike(i))<= 0.0001 .or. (ic_inc(i)<log(tol) .and. globff-nlive>50)) then
 				ic_done(i)=.true.
 			else
 				ic_done(i)=.false.
@@ -792,6 +911,32 @@ contains
 		!stopping condition reached
 		if(ic_done(0)) then
 			if(my_rank==0) then
+                        
+                        	!write the resume file
+                        	funit1=u_resume
+				fName1=resumename
+                        	write(fmt,'(a,i5,a)')  '(',totPar+1,'E20.12,i4)'
+				open(unit=funit1,file=fName1,form='formatted',status='replace')
+				write(funit1,'(l2)').false.
+				write(funit1,'(4i12)')globff,numlike,ic_n,nlive
+				write(funit1,'(2E20.12)')gZ,ginfo
+				write(funit1,'(l2)')eswitch
+            			!write branching info
+	            		do i=1,ic_n
+            				write(funit1,'(i4)')ic_nBrnch(i)
+					if(ic_nBrnch(i)>0) then
+						write(fmt,'(a,i5,a)')  '(',2*ic_nBrnch(i),'E20.12)'
+						write(funit1,fmt)ic_brnch(i,1:ic_nBrnch(i),1),ic_brnch(i,1:ic_nBrnch(i),2)
+					endif
+				enddo
+				!write the node info
+				do i=1,ic_n
+					write(funit1,'(2l2,2i6)')ic_done(i),ic_reme(i),ic_fNode(i),ic_npt(i)
+					write(funit1,'(3E20.12)')ic_vnow(i),ic_Z(i),ic_info(i)
+					if(ceff) write(funit1,'(1E20.12)')ic_eff(i,4)
+				enddo
+                  		close(funit1)
+				
 				!if done then add in the contribution to the global evidence from live points
 				j=0
 				do i1=1,ic_n
@@ -813,8 +958,8 @@ contains
                 		enddo
 				
 				!fback
-                		if(fback) call gfeedback(gZ,numlike,globff,.false.,nlive)
-				call pos_samp(ceff,Ztol,globff,broot,nlive,ndims,nCdims,totPar,multimodal)
+                		if(fback) call gfeedback(gZ,numlike,globff,.false.)
+				call pos_samp(ceff,Ztol,globff,broot,nlive,ndims,nCdims,totPar,multimodal,dumper)
 			
 				!memory deallocation
 				deallocate(sc_npt, sc_invcov, sc_node, sc_eval, sc_evec)
@@ -827,8 +972,11 @@ contains
 				if(ceff) deallocate(ic_eff)
 				deallocate(pnewa,phyPnewa,lnewa,sEll,remain,rIdx)
 				deallocate(totVol,eVolFrac,x1,x2,y1,y2,slope,intcpt,cVolFrac,pVolFrac)
+				if( prior_warning ) deallocate( ic_mean, ic_sigma )
 			endif
 			
+			deallocate( eswitchff, escount, dmin, evData, ic_sc, ic_npt, ic_done, ic_climits, &
+			ic_volFac, sc_mean, sc_tmat, sc_kfac, sc_eff, sc_vol, lowp, lowphyP, pnew, phyPnew )
 			return
 		endif
 		
@@ -1287,20 +1435,21 @@ contains
 						d4=ic_climits(nd,i3,2)-ic_climits(nd,i3,1)
 						d1=ic_climits(nd,i3,1)+d4*lowp(i3)
 						
-						if(d1==ic_llimits(nd,i3,1)) then
+						if( abs( d1 - ic_llimits(nd,i3,1) ) < d4 * 1d-5 ) then
 							pt(1,1:ic_npt(nd))=ic_climits(nd,i3,1)+d4*p(i3,nd_j+1:nd_j+ic_npt(nd))
 							ic_llimits(nd,i3,1)=minval(pt(1,1:ic_npt(nd)),MASK=pt(1,1:ic_npt(nd))>d1)
-						elseif(d1==ic_llimits(nd,i3,2)) then
+						elseif( abs( d1 - ic_llimits(nd,i3,2) ) < d4 * 1d-5 ) then
 							pt(1,1:ic_npt(nd))=ic_climits(nd,i3,1)+d4*p(i3,nd_j+1:nd_j+ic_npt(nd))
 							ic_llimits(nd,i3,2)=maxval(pt(1,1:ic_npt(nd)),MASK=pt(1,1:ic_npt(nd))<d1)
 						endif
 					enddo
 					if(multimodal) then
 						do i3=1,nCdims
-							if(lowPhyP(i3)==ic_plimits(nd,i3,1)) then
+							d4=ic_plimits(nd,i3,2)-ic_plimits(nd,i3,1)
+							if( abs( lowPhyP(i3) - ic_plimits(nd,i3,1) ) < d4 * 1d-5 ) then
 								ic_plimits(nd,i3,1)=minval(phyP(i3,nd_j+1:nd_j+ic_npt(nd)), &
 								MASK=phyP(i3,nd_j+1:nd_j+ic_npt(nd))>lowPhyP(i3))
-							elseif(lowPhyP(i3)==ic_plimits(nd,i3,2)) then
+							elseif( abs( lowPhyP(i3) - ic_plimits(nd,i3,2) ) < d4 * 1d-5 ) then
 								ic_plimits(nd,i3,2)=maxval(phyP(i3,nd_j+1:nd_j+ic_npt(nd)), &
 								MASK=phyP(i3,nd_j+1:nd_j+ic_npt(nd))<lowPhyP(i3))
 							endif
@@ -1319,7 +1468,7 @@ contains
 #endif
 	                  			if(.not.remFlag) then
 	            					!generate mpi_nthreads potential points
-							call samp(pnew,phyPnew,lnew,sc_mean(1,:),d1,sc_tMat(1,:,:),ic_climits(nd,:,:),loglike,eswitch,context)
+							call samp(pnew,phyPnew,lnew,sc_mean(1,:),d1,sc_tMat(1,:,:),ic_climits(nd,:,:),loglike,eswitch)
 						
 							if(my_rank==0) then
 								lnewa(nd,1)=lnew
@@ -1425,7 +1574,7 @@ contains
 						
 							!generate mpi_nthreads potential points
 							d1=sc_kfac(i)*sc_eff(i)
-							call samp(pnew,phyPnew,lnew,sc_mean(i,:),d1,sc_tMat(i,:,:),ic_climits(nd,:,:),loglike,eswitch,context)
+							call samp(pnew,phyPnew,lnew,sc_mean(i,:),d1,sc_tMat(i,:,:),ic_climits(nd,:,:),loglike,eswitch)
 							if(my_rank==0) then
 								lnewa(nd,1)=lnew
 						
@@ -1689,7 +1838,7 @@ contains
 					evData(j1,totPar+3)=dble(nd)
 				
 					!write the output files
-					if(lowlike==ic_hilike(nd) .or. (ic_inc(nd)<log(tol) .and.  &
+					if(abs(lowlike-ic_hilike(nd))<= 0.0001 .or. (ic_inc(nd)<log(tol) .and. &
 					globff-nlive>50) .or. ff==maxIter) then
 						ic_done(nd)=.true.
 							
@@ -1732,15 +1881,47 @@ contains
                 			write(fmt1,'(a,i5,a)')  '(',ndims+1,'E20.12)'
 					k=0
 					do i=1,ic_n
+						if( prior_warning .and. mod(ff,50)== 0 ) then
+							ic_mean(i,1:ndims) = 0d0
+							ic_sigma(i,1:ndims) = 0d0
+						endif
+						
 						do j=1,ic_npt(i)
 							k=k+1
 							write(funit1,fmt) phyP(1:totPar,k),l(k),i
-							write(funit2,fmt1) ic_climits(i,1:ndims,1)+(ic_climits(i,1:ndims,2)-ic_climits(i,1:ndims,1))*p(1:ndims,k),l(k)
+							lPts(1:ndims) = ic_climits(i,1:ndims,1)+(ic_climits(i,1:ndims,2)-ic_climits(i,1:ndims,1))*p(1:ndims,k)
+							write(funit2,fmt1) lPts(1:ndims),l(k)
+							if( prior_warning .and. mod(ff,50)== 0 ) then
+								ic_mean(i,1:ndims) = ic_mean(i,1:ndims) + lPts(1:ndims)
+								ic_sigma(i,1:ndims) = ic_sigma(i,1:ndims) + lPts(1:ndims) * lPts(1:ndims)
+							endif
 						enddo
                 			enddo
 					!close the files
 					close(funit1)
 					close(funit2)
+					
+					!check if the parameters are close the prior edges
+					if( prior_warning .and. mod(ff,50)== 0 ) then
+						flag = .false.
+						do i=1,ic_n
+							if( ic_npt(i) == 0 .or. ic_done(i) ) cycle
+							
+							ic_mean(i,1:ndims) = ic_mean(i,1:ndims) / dble(ic_npt(i))
+							ic_sigma(i,1:ndims) = sqrt(max(0d0, ic_sigma(i,1:ndims) / dble(ic_npt(i)) + ic_mean(i,1:ndims) * ic_mean(i,1:ndims)))
+							
+							do j = 1, ndims
+								if( ic_sigma(i,j) <= 0.05 .and. ( ic_sigma(i,j) <= 0.05 .or. ic_sigma(i,j) >= 0.95 ) ) then
+									if( .not. flag ) then
+										write(*,*)
+										write(*,*)"MultiNest Warning!"
+										flag = .true.
+									endif
+									write(*,*)"Parameter ", j, " of mode ", i, " is converging towards the edge of the prior."
+								endif
+							enddo
+						enddo
+					endif
                   	
                   			!write the resume file
 					funit1=u_resume
@@ -1772,7 +1953,7 @@ contains
                   			close(funit1)
 					
 					if(mod(sff,updInt*10)==0 .or. ic_done(0)) call pos_samp(ceff,Ztol, &
-					globff,broot,nlive,ndims,nCdims,totPar,multimodal)
+					globff,broot,nlive,ndims,nCdims,totPar,multimodal,dumper)
 				endif
 			endif
 			
@@ -1809,23 +1990,25 @@ contains
 					ginfo=ginfo+ic_info(i)
 				enddo
 				
-				if(fback) call gfeedback(gZ,numlike,globff,.false.,nlive)
+				if(fback) then
+					call gfeedback(gZ,numlike,globff,.false.)
 				
-				if(debug) then
-					d1=0.d0
-					d2=0.d0
-					j=0
-					do i=1,ic_n
-						if(ic_done(i)) then
+					if(debug) then
+						d1=0.d0
+						d2=0.d0
+						j=0
+						do i=1,ic_n
+							if(ic_done(i)) then
+								j=j+ic_sc(i)
+								cycle
+							endif
+							d1=d1+ic_vnow(i)*ic_volFac(i)
+							d2=d2+sum(sc_vol(j+1:j+ic_sc(i)))
 							j=j+ic_sc(i)
-							cycle
-						endif
-						d1=d1+ic_vnow(i)*ic_volFac(i)
-						d2=d2+sum(sc_vol(j+1:j+ic_sc(i)))
-						j=j+ic_sc(i)
-					enddo
-					write(*,*)ic_n,sc_n,d2/d1,count,scount
-					if(ceff) write(*,*)ic_eff(1:ic_n,4)
+						enddo
+						write(*,*)ic_n,sc_n,d2/d1,count,scount
+						if(ceff) write(*,*)ic_eff(1:ic_n,4)
+					endif
 				endif
 			endif
 			
@@ -1836,7 +2019,7 @@ contains
 				if(.not.peswitch) mar_r=1.d0/dble(numlike-num_old)
             			
 				if(ceff) then
-					d4=1d0
+					d4=ef
 				else
 					d4=ef
 				endif
@@ -1855,6 +2038,9 @@ contains
 		endif
 	enddo
 	
+	deallocate( eswitchff, escount, dmin, evData, ic_sc, ic_npt, ic_done, &
+	ic_climits, ic_volFac, sc_mean, sc_tmat, sc_kfac, sc_eff, sc_vol, lowp, lowphyP, pnew, phyPnew )
+	
   end subroutine clusteredNest
   
 !----------------------------------------------------------------------
@@ -1864,87 +2050,98 @@ contains
       implicit none
       
       integer ndim !dimensionality
+      double precision eval1(:), evec1(:,:), mean1(:), mean2(:), inv_cov1(:,:), inv_cov2(:,:)
       ! matrices for ellipsoid interaction detection
-      real*8 eval1(:),evec1(:,:),matA(ndim+1,ndim+1),matB(ndim+1,ndim+1)
-      real*8 matR(ndim+1,ndim+1),matAinvB(ndim+1,ndim+1),mean1(:),mean2(:),inv_cov1(:,:),inv_cov2(:,:)
+      double precision, allocatable :: matA(:,:), matB(:,:), matR(:,:), matAinvB(:,:)
       ! variables for calculating eigenvalues of N*N real non-sym matrix
-      real*8 evalR(ndim+1),evalI(ndim+1),VL(ndim+1,ndim+1),VR(ndim+1,ndim+1)
-      real*8 WORK(4*ndim+4),delMean(ndim)
+      double precision, allocatable :: evalR(:), evalI(:), VL(:,:), VR(:,:), WORK(:), delMean(:)
       ! effective enlargement factor
-      real*8 ef1,ef2
+      double precision ef1,ef2
       integer inf,k,i
       integer i1,i2,i3,i4,i5
-    	
-      if(ef1==0.d0 .and. ef2==0.d0) then
-      	ellIntersect=.false.
-            return
-      else if(ef1==0.d0) then
-      	ellIntersect=ptIn1Ell(ndim,mean1,mean2,inv_cov2,ef2)
-            return
-	else if(ef2==0.d0) then
-      	ellIntersect=ptIn1Ell(ndim,mean2,mean1,inv_cov1,ef1)
-            return
-	endif
       
-      delMean(1:ndim)=mean1(1:ndim)-mean2(1:ndim)
-      matA=0.d0
-      do i=1,ndim
-	matA(i,i)=eval1(i)
-	matB(i,1:ndim)=inv_cov2(i,1:ndim)
-	matB(ndim+1,i)=sum(-delMean(:)*inv_cov2(:,i))
-	matB(i,ndim+1)=matB(ndim+1,i)
-      enddo
-      matA(ndim+1,ndim+1)=-1.d0/(ef1)
-      matB(ndim+1,ndim+1)=sum(matB(ndim+1,1:ndim)*(-delMean(:)))-ef2
-      matR=0.d0
-      do i=1,ndim
-	matR(i,1:ndim)=evec1(:,i)
-      enddo
-      matR(ndim+1,ndim+1)=1.d0
-      matB=MATMUL(MATMUL(matR,matB),TRANSPOSE(matR))
-      matAinvB=MATMUL(matA,matB)
-      i1=ndim+1
-      i2=ndim+1
-      i3=ndim+1
-      i4=ndim+1
-      i5=4*ndim+4
-      call DGEEV('N','N',i1,matAinvB,i2,evalR,evalI,VL,i3,VR,i4,WORK,i5,INF)
-      k=0
-      do i=1,ndim+1
+      
+      
+	if( ef1 == 0.d0 .and. ef2 == 0.d0 ) then
+      		ellIntersect=.false.
+            	return
+      	else if( ef1 == 0.d0 ) then
+      		ellIntersect = ptIn1Ell(ndim, mean1, mean2, inv_cov2, ef2)
+            	return
+	else if( ef2==0.d0 ) then
+      		ellIntersect = ptIn1Ell(ndim, mean2, mean1, inv_cov1, ef1)
+            	return
+	endif
+	
+	allocate( matA(ndim+1,ndim+1), matB(ndim+1,ndim+1), matR(ndim+1,ndim+1), matAinvB(ndim+1,ndim+1) )
+	allocate( evalR(ndim+1),evalI(ndim+1),VL(ndim+1,ndim+1),VR(ndim+1,ndim+1), WORK(4*ndim+4), delMean(ndim) )
+      
+      	delMean(1:ndim) = mean1(1:ndim) - mean2(1:ndim)
+      	matA = 0.d0
+
+	do i = 1, ndim
+		matA(i,i)=eval1(i)
+		matB(i,1:ndim)=inv_cov2(i,1:ndim)
+		matB(ndim+1,i)=sum(-delMean(:)*inv_cov2(:,i))
+		matB(i,ndim+1)=matB(ndim+1,i)
+      	enddo
+      	
+	matA(ndim+1,ndim+1)=-1.d0/(ef1)
+      	matB(ndim+1,ndim+1)=sum(matB(ndim+1,1:ndim)*(-delMean(:)))-ef2
+      	matR=0.d0
+      	
+	do i=1,ndim
+		matR(i,1:ndim)=evec1(:,i)
+	enddo
+      
+      	matR(ndim+1,ndim+1)=1.d0
+      	matB=MATMUL(MATMUL(matR,matB),TRANSPOSE(matR))
+      	matAinvB=MATMUL(matA,matB)
+      	i1=ndim+1
+      	i2=ndim+1
+      	i3=ndim+1
+      	i4=ndim+1
+      	i5=4*ndim+4
+      	call DGEEV('N','N',i1,matAinvB,i2,evalR,evalI,VL,i3,VR,i4,WORK,i5,INF)
+      	k=0
+      
+      	do i=1,ndim+1
 		if(evalI(i)/=0.d0) then
 			ellIntersect=.true.
+			deallocate( matA, matB, matR, matAinvB, evalR, evalI, VL,VR, WORK, delMean )
 			return
 		else if(evalR(i)<0.d0) then
-            	k=k+1
+            		k=k+1
 		endif
-      enddo
-      if(k<2) then
+      	enddo
+      
+      	if(k<2) then
 		ellIntersect=.true.
+		deallocate( matA, matB, matR, matAinvB, evalR, evalI, VL,VR, WORK, delMean )
 		return
-      endif
+      	endif
             
-      ellIntersect=.false.
+      	ellIntersect=.false.
+	deallocate( matA, matB, matR, matAinvB, evalR, evalI, VL,VR, WORK, delMean )
  end function ellIntersect
 
 !---------------------------------------------------------------------- 
   !sample a point inside the given ellipsoid with log-likelihood>lboundary
-  subroutine samp(pnew,phyPnew,lnew,mean,ekfac,TMat,limits,loglike,eswitch,context)
+  subroutine samp(pnew,phyPnew,lnew,mean,ekfac,TMat,limits,loglike,eswitch)
 	
 	implicit none
-	real*8 lnew
-    	integer context
-    	real*8 pnew(ndims),spnew(ndims),phyPnew(totPar),ekfac
-    	real*8 mean(ndims),TMat(ndims,ndims)
-	real*8 limits(ndims,2)
+	double precision lnew
+    	double precision pnew(ndims),spnew(ndims),phyPnew(totPar),ekfac
+    	double precision mean(ndims),TMat(ndims,ndims)
+	double precision limits(ndims,2)
     	logical eswitch
     	integer id,i
-    	logical flag
     
     	INTERFACE
     		!the likelihood function
     		subroutine loglike(Cube,n_dim,nPar,lnew,context_pass)
 			integer n_dim,nPar,context_pass
-			real*8 lnew,Cube(nPar)
+			double precision lnew,Cube(nPar)
 		end subroutine loglike
     	end INTERFACE
     	
@@ -1981,9 +2178,9 @@ contains
       implicit none
       
       integer n!total no. of ellipsoids
-      real*8 volx(n)!no. points in each ellipsoid
+      double precision volx(n)!no. points in each ellipsoid
       integer sEll!answer, the ellipsoid to sample from
-      real*8 volTree(n),totvol,urv
+      double precision volTree(n),totvol,urv
       integer i
  
  	totvol=0.d0
@@ -2003,15 +2200,14 @@ contains
 !----------------------------------------------------------------------
    
    !provide fback to the user
-  subroutine gfeedback(logZ,nlike,nacc,dswitch,nl)
+  subroutine gfeedback(logZ,nlike,nacc,dswitch)
     
 	implicit none
     	!input variables
-    	real*8 logZ !log-evidence
+    	double precision logZ !log-evidence
     	integer nlike !no. of likelihood evaluations
     	integer nacc !no. of accepted samples
 	logical dswitch !dynamic live points
-	integer nl !no. of live points
     
     	write(*,'(a,F14.6)')'Acceptance Rate:',dble(nacc)/dble(nlike)
 	write(*,'(a,i14)')   'Replacements:   ',nacc
@@ -2031,12 +2227,12 @@ contains
 	integer npt !total no. of points
 	integer ndim !dimensionality
 	integer nCdim !clustering dimensionality
-	real*8 pt(nCdim,npt)
+	double precision pt(nCdim,npt)
 	integer naux !no. of dimensions of the aux array
-	real*8 aux(naux,npt)
+	double precision aux(naux,npt)
 	logical ic_chk(ic_n) !whether to check a node for mode separation
-	real*8 ic_vnow(ic_n) !prior volumes
-	real*8 limits(maxCls,nCdim,2) !physical parameter ranges
+	double precision ic_vnow(ic_n) !prior volumes
+	double precision limits(maxCls,nCdim,2) !physical parameter ranges
 	
 	!input/output parameters
 	!mode info
@@ -2048,22 +2244,27 @@ contains
 	logical reCluster(maxCls)
 	
 	!work variables
-	integer i,j,k,i1,j1,j2,j3,j4,k1,i2,i3,i4,i5,k2,n,n1,n2,n_mode,npt_mode,m,q,maxq,nLost
-	integer order(nCdim)
-	real*8 d1,d2,d3,d4,ef
-	integer nN,nptx(npt/(ndim+1)+1),nodex(npt/(ndim+1)+1),sc_n
-	logical gList(npt/(ndim+1)+1),lList(npt/(ndim+1)+1),toBeChkd(npt/(ndim+1)+1),flag,intFlag
-	logical overlapk(npt/(ndim+1)+1,npt/(ndim+1)+1)
-	real*8 ptk(nCdim,npt),auxk(naux,npt),ptx(nCdim,npt),auxx(naux,npt)
-	real*8 mMean(nCdim),lMean(nCdim),mStdErr(nCdim),lStdErr(nCdim)
-	real*8 mean1(nCdim),mean2(nCdim),mean1w(nCdim),mean2w(nCdim)
-	real*8 eval1(nCdim),evec1(nCdim,nCdim),ef1,ef2,invcov1(nCdim,nCdim)
-	real*8 invcov2(nCdim,nCdim)
-	logical, allocatable :: wrapEll(:),wrapDim(:,:,:)
+	integer i,j,k,i1,j2,j3,j4,i2,i3,i4,i5,n,n1,n2,n_mode,npt_mode,m,nLost
+	integer, allocatable :: order(:), nptx(:), nodex(:)
+	double precision d1,d2,d4,ef, ef1, ef2
+	integer nN,sc_n
+	logical, allocatable :: gList(:), lList(:), toBeChkd(:), overlapk(:,:)
+	logical flag,intFlag
+	double precision, allocatable :: ptk(:,:), auxk(:,:), ptx(:,:), auxx(:,:)
+	double precision, allocatable :: mMean(:), lMean(:), mStdErr(:), lStdErr(:)
+	double precision, allocatable :: mean1(:), mean2(:), mean1w(:), mean2w(:)
+	double precision, allocatable :: eval1(:), evec1(:,:), invcov1(:,:), invcov2(:,:)
+	logical, allocatable :: wrapEll(:), wrapDim(:,:,:)
 	integer, allocatable :: wrapN(:)
-	real*8, allocatable :: meanw(:,:),meank(:,:),evalk(:,:),eveck(:,:,:),invcovk(:,:,:),tmatk(:,:,:),kfack(:)
+	double precision, allocatable :: meanw(:,:),meank(:,:),evalk(:,:),eveck(:,:,:),invcovk(:,:,:),tmatk(:,:,:),kfack(:)
 	
-
+	
+	allocate( order(nCdim), nptx(npt/(ndim+1)+1), nodex(npt/(ndim+1)+1) )
+	allocate( gList(npt/(ndim+1)+1), lList(npt/(ndim+1)+1), toBeChkd(npt/(ndim+1)+1), overlapk(npt/(ndim+1)+1,npt/(ndim+1)+1) )
+	allocate( ptk(nCdim,npt), auxk(naux,npt), ptx(nCdim,npt), auxx(naux,npt), mMean(nCdim), lMean(nCdim), mStdErr(nCdim), &
+	lStdErr(nCdim), mean1(nCdim), mean2(nCdim), mean1w(nCdim), mean2w(nCdim), eval1(nCdim), evec1(nCdim,nCdim), &
+	invcov1(nCdim,nCdim), invcov2(nCdim,nCdim) )
+	
 	nN=ic_n
 	isolateModes2=.false.
 	reCluster=.false.
@@ -2114,7 +2315,7 @@ contains
 		enddo
 		
 		auxk(1:naux,i1+1:i1+ic_npt(i))=aux(1:naux,i1+1:i1+ic_npt(i))
-		n1=max(ndim+1,3) !min no. of points allowed in a cluster
+		n1=max(nCdim+1,3) !min no. of points allowed in a cluster
 		n2=ic_npt(i)/n1+1 !max no. of clusters possible
 		
 		call doGmeans(ptk(1:nCdim,i1+1:i1+ic_npt(i)),ic_npt(i),nCdim,k,nptx(sc_n+1:sc_n+n2), &
@@ -2206,7 +2407,7 @@ contains
 					toBeChkd(j)=.false.
 					mean1(:)=meank(j,:)
 					eval1(:)=evalk(j,:)
-					ef1=kfack(j)*((1.d0+ef*sqrt(50.d0/dble(nptx(sc_n+j))))**(1d0/nCdim))
+					ef1=kfack(j)*((1.d0+ef*sqrt(40.d0/dble(nptx(sc_n+j))))**(1d0/nCdim))
 					invcov1(:,:)=invcovk(j,:,:)
 					evec1(:,:)=eveck(j,:,:)
 					exit
@@ -2284,7 +2485,8 @@ contains
 			enddo
 			
 			!found a candidate?
-			if((n_mode<k .or. ic_reme(i)) .and. npt_mode>=2*(ndim+1) .and. ((ic_npt(i)-npt_mode)>=2*(ndim+1) .or. (ic_reme(i) .and. ic_npt(i)-npt_mode==0))) then
+			if((n_mode<k .or. ic_reme(i)) .and. npt_mode>=2*(ndim+1) .and. ((ic_npt(i)-npt_mode)>=2*(ndim+1) &
+			.or. (ic_reme(i) .and. ic_npt(i)-npt_mode==0))) then
 				flag=.true.
 			else
 				flag=.false.
@@ -2384,6 +2586,11 @@ contains
 		pt=ptx
 		aux=auxx
 	endif
+	
+	deallocate( order, nptx, nodex )
+	deallocate( gList, lList, toBeChkd, overlapk )
+	deallocate( ptk, auxk, ptx, auxx, mMean, lMean, mStdErr, lStdErr, mean1, mean2, mean1w, &
+	mean2w, eval1, evec1, invcov1, invcov2 )
  
  end function isolateModes2
   
@@ -2397,17 +2604,17 @@ contains
 	logical multimodal !set clustering limits?
 	integer ndim !dimensionality
 	integer nCdim !clustering dimension
-	real*8 pnew(ndim) !new point
-	real*8 phyPnew(nCdim) !new physical point
-	real*8 climits(ndim,2) !current scaling limits
+	double precision pnew(ndim) !new point
+	double precision phyPnew(nCdim) !new physical point
+	double precision climits(ndim,2) !current scaling limits
 	
 	!input/output variables
-	real*8 llimits(ndim,2) !current limits
-	real*8 plimits(nCdim,2) !current clustering limits
+	double precision llimits(ndim,2) !current limits
+	double precision plimits(nCdim,2) !current clustering limits
 	
 	!work variables
 	integer i
-	real*8 pt(ndim)
+	double precision pt(ndim)
 	
 	
 	!first scale the point
@@ -2443,8 +2650,8 @@ contains
  subroutine wraparound(oPt,wPt)
  	
 	implicit none
-	real*8 oPt !actual point
-	real*8 wPt !wrapped-around point
+	double precision oPt !actual point
+	double precision wPt !wrapped-around point
 	
 	wPt=oPt
 	do
@@ -2465,10 +2672,10 @@ contains
 	
 	!input variables
 	integer ndim !dimensionality
-	real*8 mean(ndim)
-	real*8 TMat (ndim,ndim) !transformation matrix
-	real*8 ef !enlargement factor
-	real*8 limits(ndim,2) !current scale limits
+	double precision mean(ndim)
+	double precision TMat (ndim,ndim) !transformation matrix
+	double precision ef !enlargement factor
+	double precision limits(ndim,2) !current scale limits
 	
 	!output variable
 	logical wrapEll
@@ -2476,8 +2683,8 @@ contains
 	
 	!work variable
 	integer i,j,k
-	real*8 cubeEdge(ndim),sCubeEdge
-	real*8 pnewM(1,ndim),u(1,ndim)
+	double precision cubeEdge(ndim),sCubeEdge
+	double precision pnewM(1,ndim),u(1,ndim)
 	
 	
 	wrapEll=.false.
@@ -2541,11 +2748,11 @@ contains
 	
 	!input variables
 	integer ndim
-	real*8 limits(ndim,2) !current limits
-	real*8 sP(ndim) !scaled point
+	double precision limits(ndim,2) !current limits
+	double precision sP(ndim) !scaled point
 	
 	!output variable
-	real*8 cP(ndim) !point in unit hypercube
+	double precision cP(ndim) !point in unit hypercube
 	
 	!work variables
 	integer i
@@ -2565,11 +2772,11 @@ contains
 	
 	!input variables
 	integer ndim
-	real*8 limits(ndim,2) !current limits
-	real*8 sP(ndim) !scaled point
+	double precision limits(ndim,2) !current limits
+	double precision sP(ndim) !scaled point
 	
 	!output variable
-	real*8 cP(ndim) !point in unit hypercube
+	double precision cP(ndim) !point in unit hypercube
 	
 	!work variables
 	integer i

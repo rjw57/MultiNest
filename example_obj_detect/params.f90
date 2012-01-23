@@ -1,4 +1,4 @@
-! Include file for example nested sampler program
+! Include file for example nested sampler program obj_detect (see arXiv:0704.3704)
 
 module params
 implicit none
@@ -10,19 +10,19 @@ implicit none
 	parameter (snpix=200,snclstr=8)
       	logical autopos !position clusters uniformly in the field?
       	parameter (autopos=.false.)
-	real*8 sodata(snpix,snpix)
-      	real*8 spos(2*snclstr) !cluster position coordinates
+	double precision sodata(snpix,snpix)
+      	double precision spos(2*snclstr) !cluster position coordinates
       	data spos /0.7, 110.5, 68.2, 166.4, 75.3, 117.0, 78.6, &
       	12.6, 86.8, 41.6, 113.7, 43.1, 124.5, 54.2, 192.3, 150.2/
-	real*8 samp(snclstr) !amplitude of each object
+	double precision samp(snclstr) !amplitude of each object
       	data samp /0.71, 0.91, 0.62, 0.60, 0.63, 0.56, 0.60, 0.90/
-	real*8 ssig(snclstr) !width of each object
+	double precision ssig(snclstr) !width of each object
       	data ssig /5.34, 5.40, 5.66, 7.06, 8.02, 6.11, 9.61, 9.67/
-	real*8 snoise !gaussian noise rms
+	double precision snoise !gaussian noise rms
       	data snoise / 2. /
       	integer dseed!seed for creating mock data,-ve means take it from sys clock
 	parameter(dseed=12)
-      	real*8 spriorran(4,2) !priors on the parameters
+      	double precision spriorran(4,2) !priors on the parameters
       	!uniform prior on x position
 	data spriorran(1,1),spriorran(1,2) / 0. , 200. /
       	!uniform prior on y position
@@ -56,23 +56,24 @@ implicit none
 	parameter(nest_rseed=-1)
       
       	!evidence tolerance factor
-      	real*8 nest_tol 
+      	double precision nest_tol 
       	parameter(nest_tol=0.5)
       
       	!enlargement factor reduction parameter
-      	real*8 nest_efr
+      	double precision nest_efr
       	parameter(nest_efr=0.8d0)
       
       	!root for saving posterior files
       	character*100 nest_root
 	parameter(nest_root='chains/2-')
 	
-	!no. of iterations after which the ouput files should be updated
+	!after how many iterations feedback is required & the output files should be updated
+	!note: posterior files are updated & dumper routine is called after every updInt*10 iterations
 	integer nest_updInt
 	parameter(nest_updInt=100)
 	
 	!null evidence (set it to very high negative no. if null evidence is unknown)
-	real*8 nest_Ztol
+	double precision nest_Ztol
 	parameter(nest_Ztol=-1.d90)
       
       	!max modes expected, for memory allocation

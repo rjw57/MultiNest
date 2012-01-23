@@ -1,24 +1,20 @@
-MultiNest v 2.7
+MultiNest v 2.8
 Farhan Feroz, Mike Hobson
 f.feroz@mrao.cam.ac.uk
 arXiv:0704.3704 & arXiv:0809.3437
-Released June 2009
+Released June 2010
 
 ---------------------------------------------------------------------------
 
-MultiNest library requires lapack library and the Makefile uses Intel compilers so you might have to update the
-Makefiles accordingly.
+MultiNest Licence
+
+Users are required to accept to the licence agreement given in LICENCE file.
+
+---------------------------------------------------------------------------
+
+MultiNest library requires lapack library.
 
 The code is MPI compatible. In order to disable the MPI parallelization, remove -DMPI compilation flag.
-
-You might need to change the stacksize in order for MultiNest to run interactively. 256MB should be adequate.
-The command to do it on Unix systems with different shells is;
-
-sh & ksh:
-ulimit -s [stacksize in KB]
-
-csh:
-limit stacksize [stacksize in KB]
 
 ---------------------------------------------------------------------------
 
@@ -36,26 +32,25 @@ The subtoutine to begin MultiNest are as follows:
 subroutine nestRun(mmodal, ceff, nlive, tol, efr, ndims, nPar, nCdims, maxModes, updInt, nullZ, root, seed,
 pWrap, feedback, resume, loglike, context)
 
-logical mmodal 	 		!do mode separation?
-integer nlive 	 		!number of live points
-logical ceff			!run in constant efficiency mode
-real*8 tol 		 	!evidence tolerance factor
-real*8 efr 		 	!sampling efficiency
-integer ndims	 		!number of dimensions
-integer nPar	 		!total no. of parameters
-integer nCdims			!no. of parameters on which clustering should be performed (read below)
-integer maxModes		!maximum no. of modes (for memory allocation)
-integer updInt			!iterations after which the output files should be written
-real*8 nullZ			!null log-evidence (read below)
-character(LEN=100) root  	!root for MultiNest output files
-integer seed 		 	!random no. generator seed, -ve value for seed from the sys clock
-integer pWrap[ndims]		!wraparound parameters?
-logical feedback		!need update on sampling progress?
-logical resume			!resume from a previous run?
-loglike(Cube,ndims,nPar,lnew) 	!subroutine which gives lnew=loglike(Cube(ndims))
-	integer ndims
-      	real*8 Clube(nPar)
-      	real*8 lnew
+logical mmodal 	 								!do mode separation?
+integer nlive 	 								!number of live points
+logical ceff									!run in constant efficiency mode
+real*8 tol 		 							!evidence tolerance factor
+real*8 efr 		 							!sampling efficiency
+integer ndims	 								!number of dimensions
+integer nPar	 								!total no. of parameters
+integer nCdims									!no. of parameters on which clustering should be performed (read below)
+integer maxModes								!maximum no. of modes (for memory allocation)
+integer updInt									!iterations after which the output files should be written
+real*8 nullZ									!null log-evidence (read below)
+character(LEN=100) root  							!root for MultiNest output files
+integer seed 		 							!random no. generator seed, -ve value for seed from the sys clock
+integer pWrap[ndims]								!wraparound parameters?
+logical feedback								!need update on sampling progress?
+logical resume									!resume from a previous run?
+loglike(Cube,ndims,nPar,lnew) 							!subroutine which gives lnew=loglike(Cube(ndims))
+dumper(nSamples,nlive,nPar,physLive,posterior,paramConstr,maxloglike,logZ)	!subroutine called after every updInt*10 iterations with the posterior 
+										!distribution, parameter constraints, max loglike & log evidence values
 integer context			!dummy integer for the C interface
       
 --------------------------------------------------------------------------- 
@@ -69,20 +64,45 @@ Return the log-likelihood in lnew
 
 ---------------------------------------------------------------------------
 
+dumper routine: dumper(nSamples,nlive,nPar,physLive,posterior,paramConstr,maxloglike,logZ)
+
+This routine is called after every updInt*10 iterations & at the end of the sampling allowing the posterior 
+distribution & parameter constraints to be passed on to the user in the memory. The argument are as follows:
+
+nSamples						= total number of samples in posterior distribution
+nlive						     	= total number of live points
+nPar						     	= total number of parameters (free + derived)
+physLive(nlive, nPar+1) 		     		= 2D array containing the last set of live points (physical parameters plus derived parameters) along with their loglikelihood values
+posterior(nSamples, nPar+2)		     		= posterior distribution containing nSamples points. Each sample has nPar parameters (physical + derived) along with the their loglike 
+							value & posterior probability
+paramConstr(4*nPar):
+     paramConstr(1) to paramConstr(nPar)	     	= mean values of the parameters
+     paramConstr(nPar+1) to paramConstr(2*nPar)    	= standard deviation of the parameters
+     paramConstr(nPar*2+1) to paramConstr(3*nPar)  	= best-fit (maxlike) parameters
+     paramConstr(nPar*4+1) to paramConstr(4*nPar)  	= MAP (maximum-a-posteriori) parameters
+maxLogLike					    	= maximum loglikelihood value
+logZ						     	= log evidence value
+
+The 2D arrays are Fortran arrays which are different to C/C++ arrays. In the example dumper routine provided with C & C++
+eggbox examples, the Fortran arrays are copied on to C/C++ arrays.
+
+---------------------------------------------------------------------------
+
+Tranformation from hypercube to physical parameters:
+
+MultiNest native space is unit hyper-cube in which all the parameter are uniformly distributed in [0, 1]. User
+is required to transform the hypercube parameters to physical parameters. This transformation is described in
+Sec 5.1 of arXiv:0809.3437. The routines to tranform hypercube parameters to most commonly used priors are
+provided in module priors (in file priors.f90).
+
+---------------------------------------------------------------------------
+
 Checkpointing:
 
 MultiNest is able to checkpoint. It creates [root]resume.dat file & stores information in it after every
 updInt iterations to checkpoint, where updInt is set by the user. If you don't want to resume your program from
 the last run run then make sure that you either delete [root]resume.dat file or set the parameter resume to F
 before starting the sampling.
-
----------------------------------------------------------------------------
-
-Constant Efficiency Mode:
-
-If ceff is set to T, then the enlargement factor of the bounding ellipsoids are tuned so that the sampling
-efficiency is as close to the target efficiency (set by efr) as possible. This does mean however, that the
-evidence value may not be accurate.
 
 ---------------------------------------------------------------------------
 
@@ -104,7 +124,7 @@ evidence value may not be accurate.
 
 Sampling Parameters:
 
-Here I describe the recommended paramter values to be used with the MultiNest. For detailed description please
+The recommended paramter values to be used with MultiNest are described below. For detailed description please
 refer to the paper arXiv:0809.3437
 
 nPar: 
@@ -156,7 +176,7 @@ nPar+2 column is the log(prior mass) & the last column  is the node no. (used fo
 
 ---------------------------------------------------------------------------
 
-Posterior Samples:
+Posterior Files:
 
 These files are created after every updInt*10 iterations of the algorithm & at the end of sampling.
 
@@ -164,8 +184,8 @@ MultiNest will produce five posterior sample files in the root, given by the use
 
 
 [root].txt
-Compatable with getdist with 2+nPar columns. Columns have sample probability, -2*loglikehood, samples. Sample
-probability is the sample prior mass multiplied by its likelihood & normalized by the evidence.
+Compatable with getdist with 2+nPar columns. Columns have sample probability, -2*loglikehood, parameter values. 
+Sample probability is the sample prior mass multiplied by its likelihood & normalized by the evidence.
 
 
 [root]post_separate.dat
@@ -179,13 +199,23 @@ deviations as well as the  best fit & MAP parameters of each of the mode found w
 
 
 [root]post_equal_weights.dat
-Contains the equally weighted posterior samples
+Contains the equally weighted posterior samples. Columns have sample probability, parameter values. 
+
+
+[root]summary.txt
+There is one line per mode with nPar*4+2 values in each line in this file. Each line has the following values in its column
+mean parameter values, standard deviations of the parameters, bestfit (maxlike) parameter values, MAP 
+(maximum-a-posteriori) parameter values, local log evidence, maximum loglike value
 
 ---------------------------------------------------------------------------
 
-C Interface:
+C/C++ Interface:
 
-A C interface to MultiNest is provided in example_eggbox directory.
+C interface to MultiNest is provided in example_eggboxC directory.
+C++ interface to MultiNest is provided in example_eggboxC++ directory.
+
+You might need to check the symbol table for your platform (nm libnest3.a | grep nestrun) & edit 
+example_eggbox_C++/eggbox.cc & example_eggbox_C/eggbox.c files to define NESTRUN.
 
 ---------------------------------------------------------------------------
 
@@ -201,5 +231,10 @@ example_gauss_shell: The Gaussian shells problem discussed in arXiv:0809.3437. T
 thickness of these shells can be modified through params.f90 file. Sampling parameters are also set in
 params.f90.
 
-example_eggbox: The C/C++ interface includes the egg box problem discussed in arXiv:0809.3437. The toy 
-problem and sampling parameters are set in cnest.cc file.
+example_gaussian: The Gaussian shells problem discussed in arXiv:1001.0719. The dimensionality of the problem can 
+be modified through params.f90 file. Sampling parameters are also set in params.f90.
+
+example_eggboxC & example_eggboxC++: The C/C++ interface includes the egg box problem discussed in arXiv:0809.3437. 
+The toy problem and sampling parameters are set in eggbox.c & eggbox.cc files.
+
+---------------------------------------------------------------------------

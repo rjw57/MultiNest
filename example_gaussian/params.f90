@@ -1,4 +1,4 @@
-! Include file for example MultiNest program 'Gaussian Rings' (see arXiv:0704.3704 & arXiv:0809.3437)
+! Include file for example MultiNest program 'Gaussian' (see arXiv:1001.0719)
 
 module params
 implicit none
@@ -7,29 +7,14 @@ implicit none
 
 	!dimensionality
       	integer sdim
-      	parameter(sdim=10)
+      	parameter( sdim = 32 )
       
-      	!no. of modes to generate
-      	integer sModes 
-	parameter(sModes=2)
+      	!sigma of the Gaussian (same in each direction)
+	double precision sigma(sdim)
       
-      	!width of the Gaussian profile of each ring
-	double precision sw(sModes)
-	data sw /0.1d0,0.1d0/
-      
-      	!width of the rings
-      	double precision sr(sModes)
-	data sr /2.d0,2.d0/
-      
-      	!Center of the rings. 
-      	!Centers in the 1st dimensions are set here while in 
-      	!all the other dimensions, they are set to 0 in main.f90
-      	double precision sc(sModes,sdim)
-	data sc(1,1),sc(2,1) /-3.5d0,3.5d0/
-      
-      	!priors on the parameters
-      	!uniform priors (-6,6) are used for all dimensions & are set in main.f90
-      	double precision spriorran(sdim,2)
+      	!center of the Gaussian (same in each direction)
+      	double precision center
+	parameter( center = 0.5d0 )
       
 
 
@@ -37,7 +22,7 @@ implicit none
 	
       	!whether to do multimodal sampling
 	logical nest_mmodal 
- 	parameter(nest_mmodal=.true.)
+ 	parameter(nest_mmodal=.false.)
 	
       	!sample with constant efficiency
 	logical nest_ceff
@@ -63,11 +48,11 @@ implicit none
       
       	!enlargement factor reduction parameter
       	double precision nest_efr
-      	parameter(nest_efr=0.5d0)
+      	parameter(nest_efr=0.01d0)
       
       	!root for saving posterior files
       	character*100 nest_root
-	parameter(nest_root='chains/1-')
+	parameter(nest_root='chains/2-')
 	
 	!after how many iterations feedback is required & the output files should be updated
 	!note: posterior files are updated & dumper routine is called after every updInt*10 iterations
