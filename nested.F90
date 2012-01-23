@@ -191,9 +191,9 @@ contains
 		endif
       
 		write(*,*)"*****************************************************"
-		write(*,*)"MultiNest v2.9"
+		write(*,*)"MultiNest v2.10"
       		write(*,*)"Copyright Farhan Feroz & Mike Hobson"
-      		write(*,*)"Release Feb 2011"
+      		write(*,*)"Release April 2011"
 		write(*,*)
       		write(*,'(a,i4)')" no. of live points = ",nest_nlive
       		write(*,'(a,i4)')" dimensionality = ",nest_ndims
@@ -1429,9 +1429,9 @@ contains
 			endif
 			
 			if(.not.ic_done(0)) then
+				!adjust the prior volumes & inc
+				shrink=exp(-1.d0/dble(ic_npt(nd)))
 				if(my_rank==0) then
-					!adjust the prior volumes & inc
-					shrink=exp(-1.d0/dble(ic_npt(nd)))
 	      				vprev=ic_vnow(nd)/shrink
 					vnext=ic_vnow(nd)*shrink
 					h=(vprev-vnext)/2.d0

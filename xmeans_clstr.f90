@@ -1918,7 +1918,7 @@ module xmeans_clstr
 	logical Dinosaur !successful?
 	
 	!work variables
-	integer i,i2,j,k,n1,n2,n3,j1,k1,m,l
+	integer i,i2,j,k,n1,n2,n3,j1,k1,m,l,logLloc(1)
 	integer, allocatable :: nptx(:)
 	logical flag
 	double precision, allocatable :: mean(:), covmat(:,:), invcov(:,:), tmat(:,:), evec(:,:), eval(:), p2(:,:), aux2(:,:)
@@ -2085,9 +2085,16 @@ module xmeans_clstr
 		xclsDetcov(1:numClstr)=detcovk(1:numClstr)
 		xclsVol(1:numClstr)=volk(1:numClstr)
 		
+		logLloc=maxloc(aux(1,1:npt))
+		if(logLloc(1)>npt-ptInClstr(numClstr)) then
+			d2=0d0
+		else
+			d2=0.005d0
+		endif
+		
 		if(flag) then
 			xclsVol(numClstr)=0.d0
-			if(dble(ptInClstr(numClstr))/dble(npt)<0.005d0) flag=.false.
+			if(dble(ptInClstr(numClstr))/dble(npt)<d2) flag=.false.
 		endif
 	endif
 	
