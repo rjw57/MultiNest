@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <float.h>
 
 
 #ifdef __INTEL_COMPILER 			// if the MultiNest library was compiled with ifort
@@ -20,13 +21,13 @@ char *, int *, int *, int *, int *, int *, int *, double *, void (*Loglike)(doub
 int *, double **, double **, double *, double *, double *), int *context);
 
 void run(int mmodal, int ceff, int nlive, double tol, double efr, int ndims, int nPar, int nClsPar,  int maxModes,
-int updInt, double Ztol, char root[], int seed, int *pWrap, int fb, int resume, int outfile, int initMPI, int logZero, 
+int updInt, double Ztol, char root[], int seed, int *pWrap, int fb, int resume, int outfile, int initMPI, double logZero, 
 void (*LogLike)(double *, int *, int *, double *), void (*dumper)(int *, int *, int *, double **, double **, double *, 
 double *, double *, double *), int context)
 {
 	int i;
 	for (i = strlen(root); i < 100; i++) root[i] = ' ';
-	
+
         NESTRUN(&mmodal, &ceff, &nlive, &tol, &efr, &ndims, &nPar, &nClsPar, &maxModes, &updInt, &Ztol,
         root, &seed, pWrap, &fb, &resume, &outfile, &initMPI, &logZero, LogLike, dumper, &context);
 }
@@ -172,7 +173,7 @@ int main(int argc, char *argv[])
 	int initMPI = 1;				// initialize MPI routines?, relevant only if compiling with MPI
 							// set it to F if you want your main program to handle MPI initialization
 	
-	double logZero = -1E90;				// points with loglike < logZero will be ignored by MultiNest
+	double logZero = -DBL_MAX;				// points with loglike < logZero will be ignored by MultiNest
 	
 	int context = 0;				// not required by MultiNest, any additional information user wants to pass
 

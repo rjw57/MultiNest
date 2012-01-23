@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 	
 	int resume = 1;					// resume from a previous job?
 	
-	int outfile = 1;				// write output files?
+	int outfile = 0;				// write output files?
 	
 	int initMPI = 1;				// initialize MPI routines?, relevant only if compiling with MPI
 							// set it to F if you want your main program to handle MPI initialization
