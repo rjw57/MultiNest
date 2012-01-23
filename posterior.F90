@@ -41,7 +41,7 @@ contains
       	double precision lognpost,globZ,globInfo,gZold,maxWt
       	integer npost !no. of equally weighted posterior samples
       	double precision, dimension(:,:), allocatable :: wt,temp !probability weight of each posterior sample
-      	double precision, dimension(:), allocatable :: ic_Z,llike,ic_vnow,ic_info !local evidence
+      	double precision, dimension(:), allocatable :: ic_Z,ic_zold,llike,ic_vnow,ic_info !local evidence
       	integer, dimension(:), allocatable :: ic_npt
 	
 	! parameters for dumper
@@ -81,7 +81,7 @@ contains
       	allocate(pts2(ndim+1,nIter),pts(nPar+2,nIter),consP(nIter,nPar+2), &
 	unconsP(nIter,nPar+2),pwt(nIter,ic_n),pNwt(nIter,ic_n))
       	allocate(ncon(ic_n),nSamp(ic_n),clstrdNode(ic_n))
-	allocate(check(ic_n),ic_reme(ic_n),ic_Z(ic_n),ic_info(ic_n),ic_npt(ic_n),ic_vnow(ic_n),temp(ic_n,3))
+	allocate(check(ic_n),ic_reme(ic_n),ic_Z(ic_n),ic_zold(ic_n),ic_info(ic_n),ic_npt(ic_n),ic_vnow(ic_n),temp(ic_n,3))
 	allocate(stMu(ic_n,nPar),stSigma(ic_n,nPar),llike(ic_n))
 	
 	nPtPerNode=0
@@ -109,17 +109,23 @@ contains
         	read(55,*) ltmp(1:nPar+1),i1
 		d1=ltmp(nPar+1)+log(ic_vnow(i1)/dble(ic_npt(i1)))
 		
-		!local evidence & info
-		gZold=ic_Z(i1)
-		ic_Z(i1)=LogSumExp(ic_Z(i1),d1)
-		ic_info(i1)=exp(d1-ic_Z(i1))*ltmp(nPar+1)+exp(gZold-ic_Z(i1))*(ic_info(i1)+gZold)-ic_Z(i1)
-		
 		!global evidence & info
 		gZold=globZ
 		globZ=LogSumExp(globZ,d1)
-		globInfo=exp(d1-globZ)*ltmp(nPar+1)+exp(gZold-globZ)*(globInfo+gZold)-globZ
+!		globInfo=exp(d1-globZ)*ltmp(nPar+1)+exp(gZold-globZ)*(globInfo+gZold)-globZ
+		globInfo=globInfo*exp(gzold-globz)+exp(d1-globz)*ltmp(nPar+1)
+		
+		!local evidence & info
+!		gZold=ic_Z(i1)
+		ic_zold(i1)=ic_z(i1)
+		ic_Z(i1)=LogSumExp(ic_Z(i1),d1)
+!		ic_info(i1)=exp(d1-ic_Z(i1))*ltmp(nPar+1)+exp(gZold-ic_Z(i1))*(ic_info(i1)+gZold)-ic_Z(i1)
+		ic_info(i1)=ic_info(i1)*exp(ic_zold(i1)-ic_z(i1))+exp(d1-ic_z(i1))*ltmp(nPar+1)
 	enddo
       	close(55)
+	
+	globInfo=globInfo-globZ
+	ic_info(1:ic_n)=ic_info(1:ic_n)-ic_Z(1:ic_n)
 
       	!make the top level branch
       	nbranchp(0)=1
@@ -128,7 +134,7 @@ contains
       	lognpost=0.d0
       	!read the ev.dat file & calculate the probability weights
       	open(unit=55,file=evfile,status='old') 
-    	write(fmt,'(a,i4,a)')  '(',nPar+2,'E20.12,i4)'
+    	write(fmt,'(a,i4,a)')  '(',nPar+2,'E28.18,i4)'
     	do
     		read(55,*,IOSTAT=ios) ltmp(1:nPar+2),i1
 		
@@ -179,8 +185,8 @@ contains
       	!write the global posterior files
       	open(55,file=postfile,form='formatted',status='replace')
       	open(56,file=postfile4,form='formatted',status='replace')
-      	write(fmt,'(a,i4,a)')  '(',nPar+2,'E20.12)'
-      	write(fmt2,'(a,i4,a)')  '(',nPar+1,'E20.12)'
+      	write(fmt,'(a,i4,a)')  '(',nPar+2,'E28.18)'
+      	write(fmt2,'(a,i4,a)')  '(',nPar+1,'E28.18)'
       	do i=1,ic_n
       		do j=1,nPtPerNode(i)
 			m = m + 1
@@ -190,9 +196,9 @@ contains
 				indx = m
 				maxWt = wt(i,j)
 			endif
-			! global parmater means
+			! global paramater means
 			paramConstr(1:nPar) = paramConstr(1:nPar) + evdatp(i, j, 1:nPar) * wt(i,j)
-			! global parmater standard deviations
+			! global paramater standard deviations
 			paramConstr(nPar+1:2*nPar) = paramConstr(nPar+1:2*nPar) + (evdatp(i, j, 1:nPar)**2.0) * wt(i,j)
 			
             		if(wt(i,j)>1.d-99) then
@@ -214,7 +220,7 @@ contains
 		enddo
 	enddo
 	
-	! global parmater standard deviations
+	! global paramater standard deviations
 	paramConstr(nPar+1:2*nPar) = sqrt( paramConstr(nPar+1:2*nPar) - paramConstr(1:nPar)**2.0 )
 	! global MAP parameters
 	paramConstr(nPar*3+1:nPar*4) = posterior(indx,1:nPar)
@@ -224,7 +230,7 @@ contains
       			
 	open(unit=57,file=statsFile,form='formatted',status='replace')
       	!stats file
-	write(57,'(a,E20.12,a,E20.12)')"Global Evidence:",globZ,"  +/-",sqrt(globInfo/dble(nLpt))
+	write(57,'(a,E28.18,a,E28.18)')"Global Evidence:",globZ,"  +/-",sqrt(globInfo/dble(nLpt))
       		
 	!now the separated posterior samples
       
@@ -319,7 +325,7 @@ contains
       	deallocate(nbranchp,nPtPerNode)
       	deallocate(pts2,pts,consP,unconsP,pwt,pNwt)
       	deallocate(ncon,nSamp,clstrdNode)
-	deallocate(check,ic_reme,ic_Z,ic_info,ic_npt,ic_vnow,temp)
+	deallocate(check,ic_reme,ic_Z,ic_zold,ic_info,ic_npt,ic_vnow,temp)
 	deallocate(stMu,stSigma,llike)
 	deallocate(posterior, physLive, paramConstr)
 
@@ -404,13 +410,13 @@ contains
 	integer funit4 !summary file
 	logical multimodal
 	!work variables
-	integer i,j,k,indx(1)
-	double precision d1,d2,mean(nCls,nPar),sigma(nCls,nPar),maxLike(nPar),MAP(nPar)
+	integer i,j,k,indx(1),nliveP
+	double precision d1,d2,d3,mean(nCls,nPar),sigma(nCls,nPar),maxLike(nPar),MAP(nPar)
 	double precision old_slocZ,sinfo,slocZ
 	character*30 fmt,stfmt
 
-	
-	write(stfmt,'(a,i4,a)')  '(',nPar*4+2,'E20.12)'
+	nliveP=sum(locNpt(1:nCls))
+	write(stfmt,'(a,i4,a)')  '(',nPar*4+2,'E28.18)'
 
 	!calculate the weights including the posterior component
 	do i=1,nCls
@@ -450,7 +456,7 @@ contains
 			
 			if(multimodal) then
 				!write the strictly separate file
-      				write(fmt,'(a,i4,a)')  '(',nPar+2,'E20.12)'
+      				write(fmt,'(a,i4,a)')  '(',nPar+2,'E28.18)'
 				!strictly separate points
 !				if(j>k .and. j<k+nCon(i)+1) then
 !					!probability weight
@@ -487,26 +493,27 @@ contains
 			write(funit3,*)
 			write(funit3,*)
 			write(funit3,'(a,i4)')'Mode',i
-			write(funit3,'(a,E20.12,a,E20.12)')"Strictly Local Evidence",slocZ," +/-",sqrt(sinfo/locNpt(i))
-			write(funit3,'(a,E20.12,a,E20.12)')"Local Evidence",locZ(i)," +/-",sqrt(locInfo(i)/locNpt(i))
+			d3=(nliveP-locNpt(i))*sinfo/locInfo(i)+locNpt(i)
+			write(funit3,'(a,E28.18,a,E28.18)')"Strictly Local Evidence",slocZ," +/-",sqrt(sinfo/locNpt(i))
+			write(funit3,'(a,E28.18,a,E28.18)')"Local Evidence",locZ(i)," +/-",sqrt(locInfo(i)/d3)
      		endif
 		write(funit3,'(a)')""
 		write(funit3,'(a)')"Dim No.       Mean        Sigma"
            	do j=1,nPar
-           		!write(funit3,'(i4,2E20.12)')j,stMu(i,j),stSigma(i,j)
-           		write(funit3,'(i4,2E20.12)')j,mean(i,j),sigma(i,j)
+           		!write(funit3,'(i4,2E28.18)')j,stMu(i,j),stSigma(i,j)
+           		write(funit3,'(i4,2E28.18)')j,mean(i,j),sigma(i,j)
            	enddo      		
             	write(funit3,'(a)')""
             	write(funit3,'(a)')"Maximum Likelihood Parameters"
             	write(funit3,'(a)')"Dim No.        Parameter"
             	do j=1,nPar
-           		write(funit3,'(i4,1E20.12)')j,maxLike(j)
+           		write(funit3,'(i4,1E28.18)')j,maxLike(j)
            	enddo
       		write(funit3,'(a)')""
            	write(funit3,'(a)')"MAP Parameters"
            	write(funit3,'(a)')"Dim No.        Parameter"
            	do j=1,nPar
-           		write(funit3,'(i4,1E20.12)')j,MAP(j)
+           		write(funit3,'(i4,1E28.18)')j,MAP(j)
            	enddo
 		write(funit4,stfmt)mean(i,1:nPar),sigma(i,1:nPar),maxLike(1:nPar),MAP(1:nPar),locZ(i),d2
 	enddo

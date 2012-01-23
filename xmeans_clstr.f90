@@ -2087,7 +2087,7 @@ module xmeans_clstr
 		
 		if(flag) then
 			xclsVol(numClstr)=0.d0
-			if(dble(ptInClstr(numClstr))/dble(npt)<0.05d0) flag=.false.
+			if(dble(ptInClstr(numClstr))/dble(npt)<0.005d0) flag=.false.
 		endif
 	endif
 	
@@ -2291,8 +2291,9 @@ module xmeans_clstr
 		if(rFlag .and. maxClstr==numClstr) then
 			flag=.true.
 		else
-			if(sum(xclsVol(1:numClstr))<100.d0 .and. &
-			sum(xclsVol(1:numClstr))/cVol-1d0<dTol) flag=.true.
+			!if(sum(xclsVol(1:numClstr))<100.d0 .and. &
+			!sum(xclsVol(1:numClstr))/cVol-1d0<dTol) flag=.true.
+			if(sum(xclsVol(1:numClstr))/cVol-1d0<dTol) flag=.true.
 		endif
 	endif
 	

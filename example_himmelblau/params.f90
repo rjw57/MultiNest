@@ -1,4 +1,4 @@
-! Include file for example MultiNest program 'Gaussian' (see arXiv:1001.0719)
+! Include file for example MultiNest program 'Gaussian Rings' (see arXiv:0704.3704 & arXiv:0809.3437)
 
 module params
 implicit none
@@ -7,14 +7,11 @@ implicit none
 
 	!dimensionality
       	integer sdim
-      	parameter( sdim = 8 )
+      	parameter(sdim=2)
       
-      	!sigma of the Gaussian (same in each direction)
-	double precision sigma(sdim)
-      
-      	!center of the Gaussian (same in each direction)
-      	double precision center
-	parameter( center = 0.5d0 )
+      	!priors on the parameters
+      	!uniform priors (-6,6) are used for all dimensions & are set in main.f90
+      	double precision spriorran(sdim,2)
       
 
 
@@ -22,7 +19,7 @@ implicit none
 	
       	!whether to do multimodal sampling
 	logical nest_mmodal 
- 	parameter(nest_mmodal=.false.)
+ 	parameter(nest_mmodal=.true.)
 	
       	!sample with constant efficiency
 	logical nest_ceff
@@ -30,7 +27,7 @@ implicit none
 	
       	!max no. of live points
       	integer nest_nlive
-	parameter(nest_nlive=1000)
+	parameter(nest_nlive=500)
       
       	!tot no. of parameters, should be sdim in most cases but if you need to
       	!store some additional parameters with the actual parameters then
@@ -44,15 +41,15 @@ implicit none
       
       	!evidence tolerance factor
       	double precision nest_tol 
-      	parameter(nest_tol=0.5)
+      	parameter(nest_tol=0.01)
       
       	!enlargement factor reduction parameter
       	double precision nest_efr
-      	parameter(nest_efr=0.1d0)
+      	parameter(nest_efr=0.5d0)
       
       	!root for saving posterior files
       	character*100 nest_root
-	parameter(nest_root='chains/gaussian-')
+	parameter(nest_root='chains/himmelblau-')
 	
 	!after how many iterations feedback is required & the output files should be updated
 	!note: posterior files are updated & dumper routine is called after every updInt*10 iterations
@@ -73,7 +70,7 @@ implicit none
       
       	!whether to resume from a previous run
       	logical nest_resume
-      	parameter(nest_resume=.true.)
+      	parameter(nest_resume=.false.)
 	
 	!parameters to wrap around (0 is F & non-zero T)
 	integer nest_pWrap(sdim)

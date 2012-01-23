@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
 	
 	int nlive = 1000;				// number of live points
 	
-	double efr = 0.8;				// set the required efficiency
+	double efr = 1.0;				// set the required efficiency
 	
 	double tol = 0.5;				// tol, defines the stopping criteria
 	
@@ -154,13 +154,13 @@ int main(int argc, char *argv[])
 	
 	int pWrap[] = {0, 0};				// which parameters to have periodic boundary conditions?
 	
-	char root[100] = "chains/1-";			// root for output files
+	char root[100] = "chains/eggboxC-";		// root for output files
 	
 	int seed = -1;					// random no. generator seed, if < 0 then take the seed from system clock
 	
 	int fb = 1;					// need feedback on standard output?
 	
-	int resume = 1;					// resume from a previous job?
+	int resume = 0;					// resume from a previous job?
 	
 	int context = 0;				// not required by MultiNest, any additional information user wants to pass
 

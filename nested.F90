@@ -191,9 +191,9 @@ contains
 		endif
       
 		write(*,*)"*****************************************************"
-		write(*,*)"MultiNest v2.8"
+		write(*,*)"MultiNest v2.9"
       		write(*,*)"Copyright Farhan Feroz & Mike Hobson"
-      		write(*,*)"Release Jun 2010"
+      		write(*,*)"Release Feb 2011"
 		write(*,*)
       		write(*,'(a,i4)')" no. of live points = ",nest_nlive
       		write(*,'(a,i4)')" dimensionality = ",nest_ndims
@@ -259,7 +259,7 @@ contains
 		numlike=0
 		vnow1=1.d0
 
-		write(fmt,'(a,i5,a)')  '(',np+1,'E20.12)'
+		write(fmt,'(a,i5,a)')  '(',np+1,'E28.18)'
 	
 		genLive=.true.
 	
@@ -285,7 +285,7 @@ contains
 			if( .not.genLive ) then
 				j = 0
 				open(unit=u_ev,file=evname,status='old') 
-				write(fmt,'(a,i2.2,a)')  '(',totPar+2,'E20.12,i3)'
+				write(fmt,'(a,i2.2,a)')  '(',totPar+2,'E28.18,i3)'
 				do
 					read(55,*,IOSTAT=ios) ltmp(1:totPar+2),k
 				
@@ -393,8 +393,8 @@ contains
 
     		id=0
     		i=0
-    		write(fmt,'(a,i5,a)')  '(',ndims+1,'E20.12)'
-    		write(fmt2,'(a,i5,a)')  '(',totPar+1,'E20.12,i4)'
+    		write(fmt,'(a,i5,a)')  '(',ndims+1,'E28.18)'
+    		write(fmt2,'(a,i5,a)')  '(',totPar+1,'E28.18,i4)'
     
     		!resume from previous live points generation?
     		if(resumeflag) then
@@ -600,7 +600,7 @@ contains
 	double precision mar_r !marginal acceptance rate
 	double precision gZOld !global evidence & info
 	integer maxIter !max no. of iterations
-	parameter(maxIter=200000)
+	parameter(maxIter=1000000)
 	logical eswitch,peswitch,cSwitch !whether to do ellipsoidal sampling or not
 	logical remFlag, acpt, flag, flag2
 	integer funit1, funit2 !file units
@@ -623,7 +623,7 @@ contains
 	integer, dimension(:), allocatable :: ic_fNode, ic_nsc, ic_nBrnch
 	double precision, dimension(:,:,:),  allocatable :: ic_brnch, ic_llimits, ic_plimits
 	double precision, allocatable :: ic_climits(:,:,:), ic_volFac(:)
-	double precision, dimension(:),  allocatable :: ic_Z, ic_info, ic_vnow, ic_hilike, ic_inc
+	double precision, dimension(:),  allocatable :: ic_Z, ic_Zold, ic_info, ic_vnow, ic_hilike, ic_inc
 	double precision, dimension(:,:),  allocatable :: ic_eff
 	logical, dimension(:),  allocatable :: ic_reme, ic_rFlag, ic_chk
  	logical modeFound
@@ -706,7 +706,7 @@ contains
  		sc_node(maxeCls),nodek(maxeCls),sck(maxCls))
 		allocate(pt(ndims,nlive), aux(ndims+totPar+4-nCdims,nlive))
 		allocate(ic_fNode(maxCls),ic_nsc(maxCls),ic_nBrnch(maxCls), &
-		ic_brnch(maxCls,maxCls,2),ic_reme(maxCls),ic_rFlag(maxCls),ic_z(maxCls),ic_info(maxCls), &
+		ic_brnch(maxCls,maxCls,2),ic_reme(maxCls),ic_rFlag(maxCls),ic_z(maxCls),ic_zold(maxCls),ic_info(maxCls), &
 		ic_vnow(maxCls),ic_hilike(maxCls),ic_inc(maxCls),ic_chk(maxCls),ic_llimits(maxCls,ndims,2))
 		if(multimodal) allocate(ic_plimits(maxCls,nCdims,2))
 		if(ceff) then
@@ -723,7 +723,9 @@ contains
 	
 		!global logZ = log(0)
 		gZ=logZero
+		gZOld=logZero
 		ic_Z=logZero
+		ic_zold=logZero
 		ginfo=0.d0
 		ic_info=0.d0
 		
@@ -866,7 +868,7 @@ contains
 			ic_hilike(i)=maxval(l(j+1:j+ic_npt(i)))
 			lowlike=minval(l(j+1:j+ic_npt(i)))
 			ic_inc(i)=ic_hilike(i)+log(ic_vnow(i))-ic_Z(i)
-			if(ic_npt(i)<ndims+1 .or. abs(lowlike-ic_hilike(i))<= 0.0001 .or. (ic_inc(i)<log(tol) .and. globff-nlive>50)) then
+			if(ic_npt(i)<ndims+1 .or. abs(lowlike-ic_hilike(i))<= 0.0001d0 .or. (ic_inc(i)<log(tol) .and. globff-nlive>50)) then
 				ic_done(i)=.true.
 			else
 				ic_done(i)=.false.
@@ -915,25 +917,25 @@ contains
                         	!write the resume file
                         	funit1=u_resume
 				fName1=resumename
-                        	write(fmt,'(a,i5,a)')  '(',totPar+1,'E20.12,i4)'
+                        	write(fmt,'(a,i5,a)')  '(',totPar+1,'E28.18,i4)'
 				open(unit=funit1,file=fName1,form='formatted',status='replace')
 				write(funit1,'(l2)').false.
 				write(funit1,'(4i12)')globff,numlike,ic_n,nlive
-				write(funit1,'(2E20.12)')gZ,ginfo
+				write(funit1,'(2E28.18)')gZ,ginfo
 				write(funit1,'(l2)')eswitch
             			!write branching info
 	            		do i=1,ic_n
             				write(funit1,'(i4)')ic_nBrnch(i)
 					if(ic_nBrnch(i)>0) then
-						write(fmt,'(a,i5,a)')  '(',2*ic_nBrnch(i),'E20.12)'
+						write(fmt,'(a,i5,a)')  '(',2*ic_nBrnch(i),'E28.18)'
 						write(funit1,fmt)ic_brnch(i,1:ic_nBrnch(i),1),ic_brnch(i,1:ic_nBrnch(i),2)
 					endif
 				enddo
 				!write the node info
 				do i=1,ic_n
 					write(funit1,'(2l2,2i6)')ic_done(i),ic_reme(i),ic_fNode(i),ic_npt(i)
-					write(funit1,'(3E20.12)')ic_vnow(i),ic_Z(i),ic_info(i)
-					if(ceff) write(funit1,'(1E20.12)')ic_eff(i,4)
+					write(funit1,'(3E28.18)')ic_vnow(i),ic_Z(i),ic_info(i)
+					if(ceff) write(funit1,'(1E28.18)')ic_eff(i,4)
 				enddo
                   		close(funit1)
 				
@@ -947,15 +949,20 @@ contains
 						!global evidence
             					gZold=gZ
                   				gZ=LogSumExp(gZ,d1)
-						ginfo=exp(d1-gZ)*l(i)+exp(gZold-gZ)*(ginfo+gZold)-gZ
+						!ginfo=exp(d1-gZ)*l(i)+exp(gZold-gZ)*(ginfo+gZold)-gZ
+						ginfo=ginfo*exp(gZold-gZ)+exp(d1-gZ)*l(i)
 						!local evidence
-            					gZold=ic_Z(i1)
+            					!gZold=ic_Z(i1)
+						ic_Zold(i1)=ic_Z(i1)
                   				ic_Z(i1)=LogSumExp(ic_Z(i1),d1)
-						ic_info(i1)=exp(d1-ic_Z(i1))*l(i)+ &
-						exp(gZold-ic_Z(i1))*(ic_info(i1)+gZold)-ic_Z(i1)
+						!ic_info(i1)=exp(d1-ic_Z(i1))*l(i)+ &
+						!exp(gZold-ic_Z(i1))*(ic_info(i1)+gZold)-ic_Z(i1)
+						ic_info(i1)=ic_info(i1)*exp(ic_zold(i1)-ic_Z(i1))+exp(d1-ic_Z(i1))*l(i)
 					enddo
 					j=j+ic_npt(i1)
                 		enddo
+				
+				ginfo=ginfo-gZ
 				
 				!fback
                 		if(fback) call gfeedback(gZ,numlike,globff,.false.)
@@ -966,7 +973,7 @@ contains
  				deallocate(nptk, nptx, meank, evalk, invcovk, tMatk, eveck, kfack, effk, volk, &
 				nodek ,sck)
 				deallocate(pt, aux)
-				deallocate(ic_fNode,ic_nsc,ic_nBrnch,ic_brnch,ic_reme,ic_rFlag,ic_Z, &
+				deallocate(ic_fNode,ic_nsc,ic_nBrnch,ic_brnch,ic_reme,ic_rFlag,ic_Z,ic_zold, &
 				ic_info,ic_vnow,ic_hilike,ic_inc,ic_chk,ic_llimits)
 				if(multimodal) deallocate(ic_plimits)
 				if(ceff) deallocate(ic_eff)
@@ -1027,7 +1034,8 @@ contains
 					
 					!new nodes should inherit nsc from their parents
 					do j=i+1,ic_n
-						ic_nsc(j)=ic_nsc(ic_fNode(j))
+						ic_nsc(j)=nsc_def
+						ic_nsc(ic_fNode(j))=nsc_def
 						
 						!branching info
 						ic_nBrnch(ic_fNode(j))=ic_nBrnch(ic_fNode(j))+1
@@ -1046,8 +1054,9 @@ contains
 							!divide prior volume
 							ic_vnow(j)=ic_vnow(k)*dble(ic_npt(j))/dble(nptk(k))
 							!divide the evidences & info
+							ic_zold(j)=ic_z(k)
 							ic_Z(j)=log(dble(ic_npt(j))/dble(nptk(k)))+ic_Z(k)
-							ic_info(j)=ic_info(k)*dble(ic_npt(j))/dble(nptk(k))
+							ic_info(j)=ic_info(k)*dble(ic_npt(j))/dble(nptk(k))*exp(ic_zold(j)-ic_z(j))
 							!note the father node
 							nodek(k)=1
 							ic_hilike(j)=maxval(l(q+1:q+ic_npt(j)))
@@ -1056,17 +1065,15 @@ contains
 								ic_eff(j,3:4)=ic_eff(k,3:4)
 							endif
 							
+							!ellipsoidal decomposition prediction variables
+							eVolFrac(j,:,:)=0d0
+							eVolFrac(k,:,:)=0d0
+							
 							!set the limits
 							ic_climits(j,:,:)=ic_climits(k,:,:)
+							ic_llimits(j,:,:)=ic_llimits(k,:,:)
+							ic_plimits(j,:,:)=ic_plimits(k,:,:)
 							ic_volFac(j)=ic_volFac(k)
-							ic_llimits(j,:,1)=ic_llimits(j,:,1)
-							ic_llimits(j,:,2)=ic_llimits(j,:,2)
-							ic_plimits(j,1:nCdims,2)=phyP(1:nCdims,q+1)
-							ic_plimits(j,1:nCdims,1)=phyP(1:nCdims,q+1)
-							do i3=q+2,q+ic_npt(j)
-								call setLimits(multimodal,ndims,nCdims,ic_llimits(j,:,:), &
-								ic_plimits(j,:,:),p(:,i3),phyP(1:nCdims,i3),ic_climits(j,:,:))
-							enddo
 						endif
 						q=q+ic_npt(j)
 					enddo
@@ -1080,8 +1087,9 @@ contains
 								ic_Z(j)=logZero
 								ic_info(j)=0.d0
 							else
+								ic_zold(j)=ic_z(j)
 								ic_Z(j)=log(dble(ic_npt(j))/dble(nptk(j)))+ic_Z(j)
-								ic_info(j)=ic_info(j)*dble(ic_npt(j))/dble(nptk(j))
+								ic_info(j)=ic_info(j)*dble(ic_npt(j))/dble(nptk(j))*exp(ic_zold(j)-ic_z(j))
 							endif
 							ic_hilike(j)=maxval(l(q+1:q+ic_npt(j)))
 							if(ceff) ic_eff(j,1:2)=0d0
@@ -1158,7 +1166,7 @@ contains
 							pVolFrac(i1)=slope(i1)*dble(globff)+intcpt(i1)
 						endif
 
-						if(.not.flag .and. (cVolFrac(i1)>1.05 .or. .not.dino) .and.  &
+						if(.not.flag .and. (cVolFrac(i1)*ic_volFac(i1)>1.05 .or. .not.dino) .and.  &
 						(pVolFrac(i1)<cVolFrac(i1) .or. mod(ff-1-eswitchff(i1),ic_nsc(i1))==0)) flag=.true.
 				
 						if(flag .and. dino) then
@@ -1188,7 +1196,7 @@ contains
 				
 						!volume threshold
 						if(ic_rFlag(i1)) then
-							d2=30.*d1
+							d2=1000.*d1
 						else
 							d2=totVol(i1)*d5/ic_volFac(i1)
 						endif
@@ -1240,10 +1248,9 @@ contains
 								!make dinosaur (sub-clustering)
 								if(Dinosaur(pt(:,1:ic_npt(i1)),ic_npt(i1),ndims,sck(i1),nptk(n+1:n+n2), &
 								naux,aux(1:naux,1:ic_npt(i1)),min_pt,n2,meank(n+1:n+n2,:),invcovk(n+1:n+n2,:,:), &
-								tMatk(n+1:n+n2,:,:),evalk(n+1:n+n2,:),eveck(n+1:n+n2,:,:), &
-								kfack(n+1:n+n2),effk(n+1:n+n2),volk(n+1:n+n2), &
-								d1,d2,neVol,eVolFrac(i1,:,:),globff,d3, &
-								.false.,ic_rFlag(i1),cSwitch,nCdims)) then
+								tMatk(n+1:n+n2,:,:),evalk(n+1:n+n2,:),eveck(n+1:n+n2,:,:),kfack(n+1:n+n2), &
+								effk(n+1:n+n2),volk(n+1:n+n2),d1,d2,neVol,eVolFrac(i1,:,:),globff,d3,.false., &
+								ic_rFlag(i1),cSwitch,nCdims)) then
 									if(eswitch) then
 										ic_nsc(i1)=max(1,ic_nsc(i1)-10)
 									else
@@ -1261,8 +1268,6 @@ contains
 									remain(i1)=.false.
 									rIdx(i1)=1
 									
-									if(ceff) ic_eff(i1,4)=ic_eff(i1,3)
-									
 									!set the limits
 									ic_climits(i1,:,:)=ic_llimits(i1,:,:)
 									
@@ -1272,6 +1277,13 @@ contains
 									enddo
 									
 									eVolFrac(i1,1,1)=eVolFrac(i1,1,1)*d1/d5
+									
+									if(ceff) then
+										eVolFrac(i1,1,1)=eVolFrac(i1,1,1)/ic_eff(i1,3)
+										ic_eff(i1,4)=ic_vnow(i1)*ic_volFac(i1)/totVol(i1)
+									else
+										eVolFrac(i1,1,1)=eVolFrac(i1,1,1)/ef
+									endif
 									
 									exit
 								elseif(.not.ic_rFlag(i1)) then
@@ -1333,6 +1345,8 @@ contains
 						effk(n+1:n+sck(i1))=sc_eff(q+1:q+sck(i1))
 						volk(n+1:n+sck(i1))=sc_vol(q+1:q+sck(i1))
 						nptk(n+1:n+sck(i1))=sc_npt(q+1:q+sck(i1))
+						
+						slope(i1)=slope(i1)*1.01
 					endif
 					nodek(n+1:n+sck(i1))=i1
 					
@@ -1692,6 +1706,7 @@ contains
 							exit
 	            				endif
 	      				enddo
+
 				
 					if(my_rank==0) then
 				
@@ -1702,9 +1717,10 @@ contains
 								ic_eff(nd,2)=0d0
 								
 								if(1.2d0*d1<ef) then
-									ic_eff(nd,3)=ic_eff(nd,4)*(1d0+0.1d0*sqrt(1000d0/dble(ic_npt(nd))))
+									ic_eff(nd,3)=ic_eff(nd,4)*(1d0+0.2d0*sqrt(1000d0/dble(ic_npt(nd))))
 								elseif(d1>1.2d0*ef) then
-									ic_eff(nd,3)=max(1d0,ic_eff(nd,4)/(1d0+0.1d0*sqrt(1000d0/dble(ic_npt(nd)))))
+									ic_eff(nd,3)=max(ef,ic_eff(nd,4)/(1d0+0.2d0*sqrt(1000d0/dble(ic_npt(nd)))))
+									!ic_eff(nd,3)=ic_eff(nd,4)/(1d0+0.2d0*sqrt(1000d0/dble(ic_npt(nd))))
 									ic_eff(nd,4)=ic_eff(nd,3)
 								endif
 							endif
@@ -1738,10 +1754,10 @@ contains
 							if(ic_sc(nd)==1) ic_inc(nd)=log(tol)
 						elseif(sc_vol(q)>0.d0 .and. sc_kfac(i)>0.d0 .and. (i/=q .or. (i==q .and. sc_npt(q)>0))) then
 				
-							!min vol this ellipsoids should occupy
+							!min vol this ellipsoid should occupy
 							if(dino) then
 								if(ceff) then
-									d4=ic_eff(nd,4)
+									d4=ic_eff(nd,3)
 								else
 									d4=ef
 								endif
@@ -1753,16 +1769,16 @@ contains
 	
 							!now evolve the ellipsoid with the rejected point
 							call evolveEll(0,sc_npt(q),ndims,lowp,p(:,n1+1:n1+sc_npt(q)),sc_mean(q,:), &
-							sc_eval(q,:),sc_invcov(q,:,:),sc_kfac(q),sc_eff(q),sc_vol(q),d1)						
+							sc_eval(q,:),sc_invcov(q,:,:),sc_kfac(q),sc_eff(q),sc_vol(q),d1)
 						endif
 	                  	
 						n1=sum(sc_npt(1:i-1))
 						
 						if(i/=q .or. (i==q .and. sc_npt(q)>0)) then
-							!min vol this ellipsoids should occupy
+							!min vol this ellipsoid should occupy
 							if(dino) then
 								if(ceff) then
-									d4=ic_eff(nd,4)
+									d4=ic_eff(nd,3)
 								else
 									d4=ef
 								endif
@@ -1824,11 +1840,15 @@ contains
 					!update evidence, info, prior vol, sampling statsitics
 					globff=globff+1
 					sff=sff+1
-					gZold=ic_Z(nd)
+					gZold=gZ
+					ic_zold(nd)=ic_z(nd)
 					d1=lowlike+log(h)
+	      				gZ=LogSumExp(gZ,d1)
 	      				ic_Z(nd)=LogSumExp(ic_Z(nd),d1)
-					ic_info(nd)=exp(d1-ic_Z(nd))*lowlike+exp(gZold-ic_Z(nd))* &
-					(ic_info(nd)+gZold)-ic_Z(nd)
+!					ic_info(nd)=exp(d1-ic_Z(nd))*lowlike+exp(gZold-ic_Z(nd))* &
+!					(ic_info(nd)+gZold)-ic_Z(nd)
+					ginfo=ginfo*exp(gzold-gz)+exp(d1-gz)*lowlike
+					ic_info(nd)=ic_info(nd)*exp(ic_zold(nd)-ic_z(nd))+exp(d1-ic_z(nd))*lowlike
 		
 					!data for ev.dat file
 					j1=mod(sff-1,updInt)+1
@@ -1862,7 +1882,7 @@ contains
 					fName1=evname
 					open(unit=funit1,file=fName1,form='formatted',status='old', &
 					position='append')
-    					write(fmt,'(a,i5,a)')  '(',totPar+2,'E20.12,i5)'	
+    					write(fmt,'(a,i5,a)')  '(',totPar+2,'E28.18,i5)'	
 					do i=1,j1
     						write(funit1,fmt) evData(i,1:totPar+2),int(evData(i,totPar+3))
 					enddo
@@ -1877,8 +1897,8 @@ contains
 					open(unit=funit1,file=fName1,form='formatted',status='replace')
 					open(unit=funit2,file=fName2,form='formatted',status='replace')
                 		
-					write(fmt,'(a,i5,a)')  '(',totPar+1,'E20.12,i4)'
-                			write(fmt1,'(a,i5,a)')  '(',ndims+1,'E20.12)'
+					write(fmt,'(a,i5,a)')  '(',totPar+1,'E28.18,i4)'
+                			write(fmt1,'(a,i5,a)')  '(',ndims+1,'E28.18)'
 					k=0
 					do i=1,ic_n
 						if( prior_warning .and. mod(ff,50)== 0 ) then
@@ -1930,14 +1950,14 @@ contains
                 	  	
 					write(funit1,'(l2)')genLive
 					write(funit1,'(4i12)')globff,numlike,ic_n,nlive
-					write(funit1,'(2E20.12)')gZ,ginfo
+					write(funit1,'(2E28.18)')gZ,ginfo
 					write(funit1,'(l2)')eswitch
 				
             				!write branching info
 	            			do i=1,ic_n
             					write(funit1,'(i4)')ic_nBrnch(i)
 						if(ic_nBrnch(i)>0) then
-							write(fmt,'(a,i5,a)')  '(',2*ic_nBrnch(i),'E20.12)'
+							write(fmt,'(a,i5,a)')  '(',2*ic_nBrnch(i),'E28.18)'
 							write(funit1,fmt)ic_brnch(i,1:ic_nBrnch(i),1), &
 							ic_brnch(i,1:ic_nBrnch(i),2)
 						endif
@@ -1947,8 +1967,8 @@ contains
 					do i=1,ic_n
 						write(funit1,'(2l2,2i6)')ic_done(i),ic_reme(i),ic_fNode(i), &
 						ic_npt(i)
-						write(funit1,'(3E20.12)')ic_vnow(i),ic_Z(i),ic_info(i)
-						if(ceff) write(funit1,'(1E20.12)')ic_eff(i,4)
+						write(funit1,'(3E28.18)')ic_vnow(i),ic_Z(i),ic_info(i)
+						if(ceff) write(funit1,'(1E28.18)')ic_eff(i,4)
 					enddo
                   			close(funit1)
 					
@@ -1975,20 +1995,14 @@ contains
 						totVol(i)=0.d0
 					else
 						totVol(i)=sum(sc_vol(k+1:k+ic_sc(i)))
+						if(ceff) ic_eff(i,4)=ic_vnow(i)*ic_volFac(i)/totVol(i)
 					endif
 					k=k+ic_sc(i)
 				enddo
 			endif
-            
-			if(mod(ff,50)==0) then
 			
-				!calculate the global evidence & info
-				gZ=ic_Z(1)
-				ginfo=ic_info(1)
-				do i=2,ic_n
-					gZ=logSumExp(gZ,ic_Z(i))
-					ginfo=ginfo+ic_info(i)
-				enddo
+			!calculate the global evidence & info
+			if(mod(ff,50)==0) then
 				
 				if(fback) then
 					call gfeedback(gZ,numlike,globff,.false.)
@@ -2018,12 +2032,7 @@ contains
             			!marginal acceptance rate
 				if(.not.peswitch) mar_r=1.d0/dble(numlike-num_old)
             			
-				if(ceff) then
-					d4=ef
-				else
-					d4=ef
-				endif
-				if(mar_r<d4) then
+				if(mar_r<ef) then
 					escount(1)=escount(1)+1
 					if(escount(1)==5) then
 						peswitch=.true.
