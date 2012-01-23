@@ -17,8 +17,8 @@ contains
   
 !------------------------------------------------------------------------
       
- subroutine pos_samp(Ztol,nIter,root,nLpt,ndim,nCdim,nPar,multimodal,outfile,globZ,globinfo,ic_n,ic_Z,ic_info,ic_reme,ic_vnow,ic_npt,ic_nBrnch, &
-	    ic_brnch,phyP,l,evDataAll,dumper)
+ subroutine pos_samp(Ztol,nIter,root,nLpt,ndim,nCdim,nPar,multimodal,outfile,globZ,globinfo,ic_n,ic_Z,ic_info,ic_reme, &
+ ic_vnow,ic_npt,ic_nBrnch,ic_brnch,phyP,l,evDataAll,dumper)
  !subroutine pos_samp
   	implicit none
   	
@@ -85,7 +85,8 @@ contains
 	
       	allocate(branchp(0:ic_n,ic_n),evdatp(ic_n,nIter,nPar+2),wt(ic_n,nIter))
       	allocate(nbranchp(0:ic_n),nPtPerNode(ic_n))
-      	allocate(pts2(ndim+1,nIter),pts(nPar+2,nIter),consP(nIter,nPar+2),unconsP(nIter,nPar+2),pwt(nIter,ic_n),pNwt(nIter,ic_n))
+      	allocate(pts2(ndim+1,nIter),pts(nPar+2,nIter),consP(nIter,nPar+2),unconsP(nIter,nPar+2),pwt(nIter,ic_n), &
+	pNwt(nIter,ic_n))
       	allocate(ncon(ic_n),nSamp(ic_n),clstrdNode(ic_n))
 	allocate(check(ic_n),ic_zold(ic_n),temp(ic_n,3))
 	allocate(stMu(ic_n,nPar),stSigma(ic_n,nPar),llike(ic_n))
@@ -305,7 +306,8 @@ contains
 				l1=.true.
 	
 	      			call GaussMixExpMaxLike(i,nClst,k,nCon(1:nClst),.true.,pts2(1:i,1:k), &
-	      			pts(nPar+1:nPar+2,1:k),pwt(1:k,1:nClst),pNwt(1:k,1:nClst),ic_zloc(1:nClst),llike(1:nClst),l1)
+	      			pts(nPar+1:nPar+2,1:k),pwt(1:k,1:nClst),pNwt(1:k,1:nClst),ic_zloc(1:nClst), &
+				llike(1:nClst),l1)
 			endif
 			
 			!calculate cluster properties
@@ -318,7 +320,8 @@ contains
 			j=nCdim
 	
 			!if(.not.merge(nClst,j,nPar,i,k,nCon(1:nClst),pts(:,1:k),stMu(1:nClst,1:j), &
-			!stSigma(1:nClst,1:j),ic_zloc(1:nClst),Ztol,pwt(1:k,1:nClst),pNwt(1:k,1:nClst),llike(1:nClst))) exit
+			!stSigma(1:nClst,1:j),ic_zloc(1:nClst),Ztol,pwt(1:k,1:nClst),pNwt(1:k,1:nClst), &
+			!llike(1:nClst))) exit
 			exit
 		enddo
 		
@@ -334,8 +337,8 @@ contains
 		endif
 		
 		open(unit=58,file=summaryFile,status='unknown')
-		call genSepFiles(k,nPar,nClst,Ztol,pts,pNwt(1:k,1:nClst),nCon(1:nClst),ic_zloc(1:nClst),ic_infoloc(1:nClst), &
-		ic_nptloc(1:nClst),55,56,57,58,multimodal)
+		call genSepFiles(k,nPar,nClst,Ztol,pts,pNwt(1:k,1:nClst),nCon(1:nClst),ic_zloc(1:nClst), &
+		ic_infoloc(1:nClst), ic_nptloc(1:nClst),55,56,57,58,multimodal)
 		close(58)
 		
 	      	if(multimodal) close(55)

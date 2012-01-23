@@ -197,9 +197,9 @@ contains
 		endif
       
 		write(*,*)"*****************************************************"
-		write(*,*)"MultiNest v2.12"
+		write(*,*)"MultiNest v2.13"
       		write(*,*)"Copyright Farhan Feroz & Mike Hobson"
-      		write(*,*)"Release June 2011"
+      		write(*,*)"Release Oct 2011"
 		write(*,*)
       		write(*,'(a,i4)')" no. of live points = ",nest_nlive
       		write(*,'(a,i4)')" dimensionality = ",nest_ndims
@@ -2218,7 +2218,7 @@ contains
 			if(.not.inprior(ndims,spnew(1:ndims))) cycle
 			phyPnew(1:ndims)=spnew(1:ndims)
     			call loglike(phyPnew,ndims,totPar,lnew,id+1)
-			exit
+			if(lnew>logZero) exit
 		enddo
       	endif
         

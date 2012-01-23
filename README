@@ -1,8 +1,8 @@
-MultiNest v 2.12
+MultiNest v 2.13
 Farhan Feroz, Mike Hobson
 f.feroz@mrao.cam.ac.uk
 arXiv:0704.3704 & arXiv:0809.3437
-Released June 2011
+Released Oct 2011
 
 ---------------------------------------------------------------------------
 
@@ -79,11 +79,11 @@ nPar						     	= total number of parameters (free + derived)
 physLive(nlive, nPar+1) 		     		= 2D array containing the last set of live points (physical parameters plus derived parameters) along with their loglikelihood values
 posterior(nSamples, nPar+2)		     		= posterior distribution containing nSamples points. Each sample has nPar parameters (physical + derived) along with the their loglike 
 							value & posterior probability
-paramConstr(4*nPar):
-     paramConstr(1) to paramConstr(nPar)	     	= mean values of the parameters
-     paramConstr(nPar+1) to paramConstr(2*nPar)    	= standard deviation of the parameters
-     paramConstr(nPar*2+1) to paramConstr(3*nPar)  	= best-fit (maxlike) parameters
-     paramConstr(nPar*4+1) to paramConstr(4*nPar)  	= MAP (maximum-a-posteriori) parameters
+paramConstr(1, 4*nPar):
+     paramConstr(1, 1) to paramConstr(1, nPar)	     	= mean values of the parameters
+     paramConstr(1, nPar+1) to paramConstr(1, 2*nPar)   = standard deviation of the parameters
+     paramConstr(1, nPar*2+1) to paramConstr(1, 3*nPar) = best-fit (maxlike) parameters
+     paramConstr(1, nPar*4+1) to paramConstr(1, 4*nPar) = MAP (maximum-a-posteriori) parameters
 maxLogLike					    	= maximum loglikelihood value
 logZ						     	= log evidence value
 logZerr						     	= error on log evidence value
@@ -204,7 +204,7 @@ deviations as well as the  best fit & MAP parameters of each of the mode found w
 
 
 [root]post_equal_weights.dat
-Contains the equally weighted posterior samples. Columns have sample probability, parameter values. 
+Contains the equally weighted posterior samples. Columns have parameter values followed by loglike value.
 
 
 [root]summary.txt
@@ -216,8 +216,8 @@ mean parameter values, standard deviations of the parameters, bestfit (maxlike) 
 
 C/C++ Interface:
 
-C interface to MultiNest is provided in example_eggboxC directory.
-C++ interface to MultiNest is provided in example_eggboxC++ directory.
+C interface to MultiNest is provided in header file multinest.h in example_eggboxC directory.
+C++ interface to MultiNest is provided in header file multinest.h in example_eggboxC++ directory.
 
 You might need to check the symbol table for your platform (nm libnest3.a | grep nestrun) & edit 
 example_eggbox_C++/eggbox.cc & example_eggbox_C/eggbox.c files to define NESTRUN.

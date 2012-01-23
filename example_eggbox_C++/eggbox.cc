@@ -3,86 +3,7 @@
 #include <string.h>
 #include <iostream>
 #include <stdlib.h>
-
-
-#ifdef __INTEL_COMPILER 			// if the MultiNest library was compiled with ifort
-       #define NESTRUN nested_mp_nestrun_
-#elif defined __GNUC__ 				// if the MultiNest library was compiled with gfortran
-       #define NESTRUN __nested_MOD_nestrun
-#else
-       #error Don't know how to link to Fortran libraries, check symbol table for your platform (nm libnest3.a | grep nestrun) & edit example_eggbox_C++/eggbox.cc
-#endif
-
-
-/***************************************** C++ Interface to MultiNest **************************************************/
-
-namespace nested
-{
-	// map the Fortran 90 entry points of libnest3.a to C++ functions
-
-	// module nested, function nestRun maps to nested::run
-
-	// the pass-by-reference nature of most of the Fortran is translated away
-	// *apart* from the callbacks. The provided call back functions must still accept 
-	// references rather than values. There is also some confusion as to the type
-	// of the first argument of LogLike. 
-	// Should it be a double * or an farray<double, 1> *? The former seems to 
-	// work and is simpler.
-
-	// This structure is reverse engineered from looking 
-	// at gfortran stack traces. It is probably wrong
-	
-	template<typename type, int ndims> class farray_traits;
-	
-	template<> class farray_traits<double, 1> { public: static const int id = 537; };
-	template<> class farray_traits<double, 2> { public: static const int id = 538; };
-	template<> class farray_traits<int, 1> { public: static const int id = 265; };
-	template<> class farray_traits<int, 2> { public: static const int id = 266; };
-
-	// the extra data for f90 that defines how arrays are arranged.
-	template<typename T, int ndim> class farray
-	{
-		public:
-			farray(T *_data, int w, int h = 0) : data(_data), offset(0), type(farray_traits<T, ndim>::id), 
-			x_stride(1), x_lbound(1), x_ubound(w), y_stride(w), y_lbound(1), y_ubound(h) {};
-			
-			T *data;
-			int offset;
-			int type;
-			int x_stride, x_lbound, x_ubound;
-			int y_stride, y_lbound, y_ubound;
-	};
-	
-	extern "C" void NESTRUN(int &mmodal, int &ceff, int &nlive, double &tol, double &efr, int &ndims, 
-	int &nPar, int &nClsPar, int &maxModes, int &updInt, double &Ztol, char *root, int &seed, 
-	int *pWrap, int &fb, int &resume, int &outfile, int &initMPI, double &logZero, 
-	void (*Loglike)(double *Cube, int &n_dim, int &n_par, double &lnew), 
-	void (*dumper)(int &, int &, int &, double **, double **, double *, double &, double &, double &), int &root_len);
-
-	void run(bool mmodal, bool ceff, int nlive, double tol, double efr, int ndims, int nPar, int nClsPar, int maxModes, 
-	int updInt, double Ztol, const std::string &root, int seed, int *pWrap, bool fb, bool resume, bool outfile, bool initMPI, double logZero,
-	void (*LogLike)(double *Cube, int &n_dim, int &n_par, double &lnew), 
-	void (*dumper)(int &, int &, int &, double **, double **, double *, double &, double &, double &))
-	{
-		char t_root[100];
-		std::fill(t_root, t_root + 100, ' ');
-		snprintf(t_root, 99, "%s", root.c_str());
-		int root_len = strlen(t_root);
-		t_root[strlen(t_root)] = ' ';
-	
-		int t_fb = fb;
-		int t_resume = resume;
-		int t_outfile = outfile;
-		int t_initMPI = initMPI;
-		int t_mmodal = mmodal;
-		int t_ceff = ceff;
-		
-		NESTRUN(t_mmodal, t_ceff, nlive, tol, efr, ndims, nPar, nClsPar, maxModes, updInt, Ztol, 
-		t_root, seed, pWrap, t_fb, t_resume, t_outfile, t_initMPI, logZero, LogLike, dumper, root_len);
-	}	
-}
-
-/***********************************************************************************************************************/
+#include "multinest.h"
 
 
 
@@ -133,16 +54,16 @@ void LogLike(double *Cube, int &ndim, int &npars, double &lnew)
 // nPar 						= total number of parameters (free + derived)
 // physLive[1][nlive * (nPar + 1)] 			= 2D array containing the last set of live points (physical parameters plus derived parameters) along with their loglikelihood values
 // posterior[1][nSamples * (nPar + 2)] 			= posterior distribution containing nSamples points. Each sample has nPar parameters (physical + derived) along with the their loglike value & posterior probability
-// paramConstr[4*nPar]:
-//	paramConstr[0] to paramConstr[nPar - 1] 	= mean values of the parameters
-//	paramConstr[nPar] to paramConstr[2*nPar - 1] 	= standard deviation of the parameters
-//	paramConstr[nPar*2] to paramConstr[3*nPar - 1] 	= best-fit (maxlike) parameters
-//	paramConstr[nPar*4] to paramConstr[4*nPar - 1] 	= MAP (maximum-a-posteriori) parameters
+// paramConstr[1][4*nPar]:
+// paramConstr[0][0] to paramConstr[0][nPar - 1] 	= mean values of the parameters
+// paramConstr[0][nPar] to paramConstr[0][2*nPar - 1] 	= standard deviation of the parameters
+// paramConstr[0][nPar*2] to paramConstr[0][3*nPar - 1] = best-fit (maxlike) parameters
+// paramConstr[0][nPar*4] to paramConstr[0][4*nPar - 1] = MAP (maximum-a-posteriori) parameters
 // maxLogLike						= maximum loglikelihood value
 // logZ							= log evidence value
 // logZerr						= error on log evidence value
 
-void dumper(int &nSamples, int &nlive, int &nPar, double **physLive, double **posterior, double *paramConstr, double &maxLogLike, double &logZ, double &logZerr)
+void dumper(int &nSamples, int &nlive, int &nPar, double **physLive, double **posterior, double **paramConstr, double &maxLogLike, double &logZ, double &logZerr)
 {
 	// convert the 2D Fortran arrays to C++ arrays
 	
