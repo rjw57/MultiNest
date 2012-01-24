@@ -6,11 +6,13 @@ FFLAGS += -O3 -w -ffree-line-length-none -fPIC
 CFLAGS += -O3
 
 ifneq ($(shell which mpif90),)
+ifndef WITHOUT_MPI
 FC = mpif90
 CC = mpicc
 CXX = mpiCC
 FFLAGS += -DMPI
 CFLAGS += -DMPI
+endif
 else
 $(warning "mpif90 not found, so will compile without MPI!")
 endif
