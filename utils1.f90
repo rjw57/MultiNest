@@ -127,36 +127,10 @@ contains
 
 !----------------------------------------------------------------------
 
-  subroutine calc_var(npt,np,p,var)
-    implicit none
-    integer np,npt
-    real*8 p(np,npt)
-    real*8 var(np)
-    real*8 s(np),ss(np),xij
-    integer i,j,ip
-
-    s=0.
-    ss=0.
-	
-    do j=1,np
-	xij=p(j,i)
-	s(j)=sum(p(j,1:npt))
-	ss(j)=sum(p(j,1:npt)**2.)
-    enddo
-      
-    do j=1,np
-		Var(j)=(ss(j)-s(j)*s(j)/dble(npt))/dble(npt-1)
-    enddo
-    return
-    
-  end subroutine calc_var
-
-!----------------------------------------------------------------------
-
   !inv_cov=(evec).(inv_eval).Transpose(evec)
   subroutine calc_invcovmat(numdim,evec,eval,invcov)
     implicit none
-    integer numdim,npt !num of dimensions & points
+    integer numdim !num of dimensions & points
     real*8 evec(:,:),eval(:) !eigenvectors & eigenvalues
     real*8 invcov(:,:)
     integer i,j,k
@@ -183,7 +157,7 @@ contains
     real*8 kmax
     integer npt,ndim
     real*8 pt(ndim,npt),ptM(1,ndim),sf(1,1)
-    integer i,j,k
+    integer i,k
     real*8 inv_cov(ndim,ndim)
     real*8 mean(ndim)
     real*8 temp_p(ndim,npt)
@@ -213,7 +187,6 @@ contains
       	real*8 pt(ndim),point(1,ndim)!point to be checked
       	real*8 meanx(ndim),invcovx(ndim,ndim)!cluster attributes
       	real*8 kfac(1,1)!k factor of present point
-      	integer i,j
       
       	point(1,:)=pt(:)-meanx(:)
 	kfac=MATMUL(MATMUL(point,invcovx),Transpose(point))
@@ -228,7 +201,7 @@ contains
     implicit none
  
     real*8 TMatrix(ndim,ndim),evec(ndim,ndim),eval(ndim)
-    integer ndim,np,i,j,k
+    integer ndim,np,i,j
     real*8 TMat(ndim,ndim)
     
     np=ndim
@@ -351,8 +324,7 @@ contains
     real*8 eff !enlargement volume factor
     real*8 vol !ellipsoid volume
     !work variables
-    integer i,n,id,j
-    real*8 ptE(ndim),d1,d2
+    integer i
     
     !calculate the mean
     do i=1,ndim
@@ -374,7 +346,7 @@ contains
     evec=covmat
     call Diagonalize(evec,eval,ndim,switch)
     !eigenvalues of covariance matrix can't be zero
-    do i=1,ndim
+    do i=1,ndim-1
 	if(eval(i)<=0.d0) eval(1:i)=eval(i+1)/2.
     enddo
 	
@@ -466,9 +438,9 @@ contains
 			enddo
 			j=j-1
 			if(j>0) then
-				maxIndx(1:j-1,:)=maxIndx(2:j,:)
-				maxIndx(j,1)=dble(i)
-				maxIndx(j,2)=dist(i)
+				maxIndx(1:j-1,:) = maxIndx(2:j,:)
+				maxIndx(j,1) = dble(i)
+				maxIndx(j,2) = dist(i)
 			endif
     		enddo
 	
@@ -517,7 +489,7 @@ contains
     evec=covmat
     call Diagonalize(evec,eval,ndim,.false.)
     !eigenvalues of covariance matrix can't be zero
-    do i=1,ndim
+    do i=1,ndim-1
 	if(eval(i)<=0.d0) eval(1:i)=eval(i+1)/2.
     enddo
 	
@@ -608,7 +580,6 @@ contains
 	real*8 vol !input (output): volume before (after) rejection/insertion
 	
 	!work variables
-	integer i,j
 	real*8 new_pt(ndim,1),new_kfac
 	
 	
@@ -699,11 +670,10 @@ contains
 !----------------------------------------------------------------------
    
    !enlarge an ellipsoid because of an additional point being inserted in it
-  subroutine enlargeEll(npt,ndim,newpt,mean,eval,invcov,kfac,eff,vol,pVol)
+  subroutine enlargeEll(ndim,newpt,mean,eval,invcov,kfac,eff,vol,pVol)
     
 	implicit none
     	!input variables
-	integer npt !no. of points before insertion
 	integer ndim !dimensionality
 	real*8 newpt(ndim) !point to be inserted
 	real*8 mean(ndim) !centroid of the ellipsoid
@@ -717,7 +687,6 @@ contains
 	real*8 vol !input (output): volume before (after) insertion
 	
 	!work variables
-	integer i,j
 	real*8 new_pt(ndim,1),d1
 	
 	
@@ -747,7 +716,6 @@ contains
     logical inprior
     integer np, i
     real*8 p(np)
-    real*8 pt(np)
     
     inprior = .true.
     
@@ -932,13 +900,12 @@ contains
     implicit none
     integer npt,array(npt) !total no. of points in the array & the array
     integer x !no. whose position has to be found
-    integer sp,ep,ip !starting, end & insertion points
+    integer sp,ep !starting, end & insertion points
 
+    binSearch = 1
     if(npt==0) then
-    	binSearch=1
       	return
     elseif(x>=array(1)) then
-    	binSearch=1
       	return
     end if
     if(x<=array(npt)) then
@@ -995,9 +962,8 @@ contains
       real*8 x(d) !data vector
       real*8 mu(d) !mean
       real*8 C(d,d) !covariance matrix
-      real*8 detC !determinant of covariance
       real*8 a(d) !residual vector (x-mu)
-      integer i,j,k
+      integer i
       real*8 Chisq,sqrD
       real*8 TwoPi
       Parameter(TwoPi=6.283185307)
@@ -1041,7 +1007,7 @@ contains
       real*8 pPt !point
       real*8 pMean(nClstr),pCov(nClstr) !projected mean & variance of clusters
       real*8 wt(nClstr)
-      integer i,j
+      integer i
       real*8 z
       
       cGaussMix=0.
@@ -1062,7 +1028,6 @@ contains
       real*8 pt(:),point(1,ndim)!point to be checked
       real*8 meanx(:),invcovx(:,:),kfacx!cluster attributes
       real*8 kfac!k factor of present point
-      integer i,j
       
       ptIn1Ell=.false.
         

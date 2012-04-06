@@ -1,4 +1,4 @@
-! Include file for example nested sampler program 'Gaussian Rings'
+! Include file for example MultiNest program 'Gaussian Rings' (see arXiv:0704.3704 & arXiv:0809.3437)
 
 module params
 implicit none
@@ -14,22 +14,22 @@ implicit none
 	parameter(sModes=2)
       
       	!width of the Gaussian profile of each ring
-	real*8 sw(sModes)
+	double precision sw(sModes)
 	data sw /0.1d0,0.1d0/
       
       	!width of the rings
-      	real*8 sr(sModes)
+      	double precision sr(sModes)
 	data sr /2.d0,2.d0/
       
       	!Center of the rings. 
       	!Centers in the 1st dimensions are set here while in 
       	!all the other dimensions, they are set to 0 in main.f90
-      	real*8 sc(sModes,sdim)
+      	double precision sc(sModes,sdim)
 	data sc(1,1),sc(2,1) /-3.5d0,3.5d0/
       
       	!priors on the parameters
       	!uniform priors (-6,6) are used for all dimensions & are set in main.f90
-      	real*8 spriorran(sdim,2)
+      	double precision spriorran(sdim,2)
       
 
 
@@ -55,26 +55,27 @@ implicit none
       
       	!seed for nested sampler, -ve means take it from sys clock
 	integer nest_rseed 
-	parameter(nest_rseed=-1)
+	parameter(nest_rseed=1)
       
       	!evidence tolerance factor
-      	real*8 nest_tol 
+      	double precision nest_tol 
       	parameter(nest_tol=0.5)
       
       	!enlargement factor reduction parameter
-      	real*8 nest_efr
+      	double precision nest_efr
       	parameter(nest_efr=0.5d0)
       
       	!root for saving posterior files
       	character*100 nest_root
-	parameter(nest_root='chains/2-')
+	parameter(nest_root='chains/1-')
 	
-	!no. of iterations after which the ouput files should be updated
+	!after how many iterations feedback is required & the output files should be updated
+	!note: posterior files are updated & dumper routine is called after every updInt*10 iterations
 	integer nest_updInt
-	parameter(nest_updInt=100)
+	parameter(nest_updInt=1000)
 	
 	!null evidence (set it to very high negative no. if null evidence is unknown)
-	real*8 nest_Ztol
+	double precision nest_Ztol
 	parameter(nest_Ztol=-1.d90)
       
       	!max modes expected, for memory allocation
@@ -88,6 +89,19 @@ implicit none
       	!whether to resume from a previous run
       	logical nest_resume
       	parameter(nest_resume=.true.)
+      
+      	!whether to write output files
+      	logical nest_outfile
+      	parameter(nest_outfile=.true.)
+      
+      	!initialize MPI routines?, relevant only if compiling with MPI
+	!set it to F if you want your main program to handle MPI initialization
+      	logical nest_initMPI
+      	parameter(nest_initMPI=.true.)
+      
+      	!points with loglike < nest_logZero will be ignored by MultiNest
+      	double precision nest_logZero
+      	parameter(nest_logZero=-huge(1d0))
 	
 	!parameters to wrap around (0 is F & non-zero T)
 	integer nest_pWrap(sdim)

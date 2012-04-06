@@ -3,14 +3,14 @@ LIBS = -L$(NESTLIBDIR) -lnest3 $(LAPACKLIB)
  
 OBJFILES = params.o like.o nestwrap.o main.o
 
-all: gauss_shell 
+all: himmelblau 
 
 %.o: %.f90
 	$(FC) $(FFLAGS) -I$(NESTLIBDIR) -c $*.f90
  
-gauss_shell: $(OBJFILES)
-	$(FC) -o ../gauss_shell $(OBJFILES) \
+himmelblau: $(OBJFILES)
+	$(FC) -o ../himmelblau $(OBJFILES) \
 	$(FFLAGS) $(LIBS)
 
 clean:
-	rm -f *.o *.mod ../gauss_shell
+	rm -f *.o *.mod ../himmelblau

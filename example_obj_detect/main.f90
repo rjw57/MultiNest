@@ -5,7 +5,7 @@ program main
       
       	implicit none
 	integer i
-      	real*8 temp(4),s_nullev
+      	double precision temp(4),s_nullev
       
       	sdim=0
 	do i=1,4
