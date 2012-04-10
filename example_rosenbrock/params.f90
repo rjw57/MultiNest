@@ -1,36 +1,19 @@
-! Include file for example nested sampler program obj_detect (see arXiv:0704.3704)
+! Include file for example MultiNest program 'Gaussian Rings' (see arXiv:0704.3704 & arXiv:0809.3437)
 
 module params
 implicit none
 
 ! Toy Model Parameters
-	integer sdim
-      	integer snpix !no. of pixels in the grid (generate a grid with snpix X snpix pixels)
-      	integer snclstr !no. of objects to generate, should be a square no.
-	parameter (snpix=200,snclstr=8)
-      	logical autopos !position clusters uniformly in the field?
-      	parameter (autopos=.false.)
-	double precision sodata(snpix,snpix)
-      	double precision spos(2*snclstr) !cluster position coordinates
-      	data spos /0.7, 110.5, 68.2, 166.4, 75.3, 117.0, 78.6, &
-      	12.6, 86.8, 41.6, 113.7, 43.1, 124.5, 54.2, 192.3, 150.2/
-	double precision samp(snclstr) !amplitude of each object
-      	data samp /0.71, 0.91, 0.62, 0.60, 0.63, 0.56, 0.60, 0.90/
-	double precision ssig(snclstr) !width of each object
-      	data ssig /5.34, 5.40, 5.66, 7.06, 8.02, 6.11, 9.61, 9.67/
-	double precision snoise !gaussian noise rms
-      	data snoise / 2. /
-      	integer dseed!seed for creating mock data,-ve means take it from sys clock
-	parameter(dseed=12)
-      	double precision spriorran(4,2) !priors on the parameters
-      	!uniform prior on x position
-	data spriorran(1,1),spriorran(1,2) / 0. , 200. /
-      	!uniform prior on y position
-	data spriorran(2,1),spriorran(2,2) / 0. , 200. /
-      	!uniform prior on amplitude
-	data spriorran(3,1),spriorran(3,2) / 0. , 2. /
-      	!uniform prior on sigma
-	data spriorran(4,1),spriorran(4,2) / 3. , 12. /
+
+	!dimensionality
+      	integer sdim
+      	parameter(sdim=2)
+      
+      	!priors on the parameters
+      	!uniform priors (-5,5) are used for all dimensions & are set in main.f90
+      	double precision spriorran(sdim,2)
+      
+
 
 ! Parameters for Nested Sampler
 	
@@ -44,12 +27,13 @@ implicit none
 	
       	!max no. of live points
       	integer nest_nlive
-	parameter(nest_nlive=1000)
+	parameter(nest_nlive=500)
       
       	!tot no. of parameters, should be sdim in most cases but if you need to
       	!store some additional parameters with the actual parameters then
       	!you need to pass them through the likelihood routine
 	integer nest_nPar 
+	parameter(nest_nPar=sdim)
       
       	!seed for nested sampler, -ve means take it from sys clock
 	integer nest_rseed 
@@ -57,20 +41,20 @@ implicit none
       
       	!evidence tolerance factor
       	double precision nest_tol 
-      	parameter(nest_tol=0.5)
+      	parameter(nest_tol=0.01)
       
       	!enlargement factor reduction parameter
       	double precision nest_efr
-      	parameter(nest_efr=0.8d0)
+      	parameter(nest_efr=0.5d0)
       
       	!root for saving posterior files
       	character*100 nest_root
-	parameter(nest_root='chains/2-')
+	parameter(nest_root='chains/rosenbrock-')
 	
 	!after how many iterations feedback is required & the output files should be updated
 	!note: posterior files are updated & dumper routine is called after every updInt*10 iterations
 	integer nest_updInt
-	parameter(nest_updInt=100)
+	parameter(nest_updInt=1000)
 	
 	!null evidence (set it to very high negative no. if null evidence is unknown)
 	double precision nest_Ztol
@@ -86,7 +70,7 @@ implicit none
       
       	!whether to resume from a previous run
       	logical nest_resume
-      	parameter(nest_resume=.true.)
+      	parameter(nest_resume=.false.)
       
       	!whether to write output files
       	logical nest_outfile
@@ -102,7 +86,7 @@ implicit none
       	parameter(nest_logZero=-huge(1d0))
 	
 	!parameters to wrap around (0 is F & non-zero T)
-	integer nest_pWrap(4)
+	integer nest_pWrap(sdim)
 	
       	!feedback on the sampling progress?
       	logical nest_fb 
