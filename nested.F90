@@ -1,5 +1,5 @@
 ! Do nested sampling algorithm to calculate Bayesian evidence
-! Nov 2011
+! Mar 2012
 ! Farhan Feroz
 
 module Nested
@@ -30,6 +30,7 @@ module Nested
   logical ceff ! constant efficiency?
   integer numlike,globff
   double precision logZero
+  integer maxIter
   logical fback,resumeFlag,dlive,genLive,dino
   !output files name
   character(LEN=100)physname,broot,rname,resumename,livename,evname
@@ -44,12 +45,13 @@ module Nested
 contains
   
   subroutine nestRun(nest_mmodal,nest_ceff,nest_nlive,nest_tol,nest_ef,nest_ndims,nest_totPar,nest_nCdims,maxClst, &
-  nest_updInt,nest_Ztol,nest_root,seed,nest_pWrap,nest_fb,nest_resume,nest_outfile,initMPI,nest_logZero,loglike,dumper,context)
+  nest_updInt,nest_Ztol,nest_root,seed,nest_pWrap,nest_fb,nest_resume,nest_outfile,initMPI,nest_logZero,nest_maxIter, &
+  loglike,dumper,context)
         
   	implicit none
         
 	integer nest_ndims,nest_nlive,nest_updInt,context,seed,i
-	integer maxClst,nest_nsc,nest_totPar,nest_nCdims,nest_pWrap(*)
+	integer maxClst,nest_nsc,nest_totPar,nest_nCdims,nest_pWrap(*),nest_maxIter
 	logical nest_mmodal,nest_fb,nest_resume,nest_ceff,nest_outfile,initMPI
 	character(LEN=100) nest_root
 	double precision nest_tol,nest_ef,nest_Ztol,nest_logZero
@@ -91,6 +93,8 @@ contains
 	Ztol=nest_Ztol
 	updInt=nest_updInt
 	logZero=nest_logZero
+	maxIter=nest_maxIter
+	if(maxIter<=0) maxIter=huge(1)
 	
 	ndims=nest_ndims
       	totPar=nest_totPar
@@ -197,7 +201,7 @@ contains
 		endif
       
 		write(*,*)"*****************************************************"
-		write(*,*)"MultiNest v2.16"
+		write(*,*)"MultiNest v2.17"
       		write(*,*)"Copyright Farhan Feroz & Mike Hobson"
       		write(*,*)"Release Mar 2012"
 		write(*,*)
@@ -616,8 +620,6 @@ contains
 	double precision h, logX, vprev, vnext, shrink !prior volume
 	double precision mar_r !marginal acceptance rate
 	double precision gZOld !global evidence & info
-	integer maxIter !max no. of iterations
-	parameter(maxIter=1000000)
 	logical eswitch,peswitch,cSwitch !whether to do ellipsoidal sampling or not
 	logical remFlag, acpt, flag, flag2
 	integer funit1, funit2 !file units
@@ -1184,13 +1186,26 @@ contains
 						cVolFrac(i1)=totVol(i1)*d4/((ic_vnow(i1)*ic_volFac(i1)))
 				
 						!predicted vol fraction
-						if(dino) then
-							pVolFrac(i1)=max(slope(i1)*dble(globff)+intcpt(i1),1.d0)
+!						if(dino) then
+!							pVolFrac(i1)=max(slope(i1)*dble(globff)+intcpt(i1),1.d0)
+!						else
+!							pVolFrac(i1)=slope(i1)*dble(globff)+intcpt(i1)
+!						endif
+						
+						pVolFrac(i1)=0d0
+						i3=0
+						do i2=1,neVol
+							if(eVolFrac(i1,i2,1)<=0d0) exit
+							pVolFrac(i1)=pVolFrac(i1)+eVolFrac(i1,i2,1)
+							i3=i3+1
+						enddo
+						if(pVolFrac(i1)==0d0) then
+							pVolFrac(i1)=1d0
 						else
-							pVolFrac(i1)=slope(i1)*dble(globff)+intcpt(i1)
+							pVolFrac(i1)=pVolFrac(i1)/dble(i3)
 						endif
 
-						if(.not.flag .and. (cVolFrac(i1)*ic_volFac(i1)>1.05 .or. .not.dino) .and.  &
+						if(.not.flag .and. (cVolFrac(i1)>1.1 .or. .not.dino) .and.  &
 						(pVolFrac(i1)<cVolFrac(i1) .or. mod(ff-1-eswitchff(i1),ic_nsc(i1))==0)) flag=.true.
 				
 						if(flag .and. dino) then
@@ -1300,13 +1315,13 @@ contains
 										ic_volFac(i1)=ic_volFac(i1)/(ic_climits(i1,i2,2)-ic_climits(i1,i2,1))
 									enddo
 									
-									eVolFrac(i1,1,1)=eVolFrac(i1,1,1)*d1/d5
+									!eVolFrac(i1,1,1)=eVolFrac(i1,1,1)*d1/d5
 									
 									if(ceff) then
-										eVolFrac(i1,1,1)=eVolFrac(i1,1,1)/ic_eff(i1,3)
+										!eVolFrac(i1,1,1)=eVolFrac(i1,1,1)/ic_eff(i1,3)
 										ic_eff(i1,4)=ic_vnow(i1)*ic_volFac(i1)/totVol(i1)
 									else
-										eVolFrac(i1,1,1)=eVolFrac(i1,1,1)/ef
+										!eVolFrac(i1,1,1)=eVolFrac(i1,1,1)/ef
 									endif
 									
 									exit

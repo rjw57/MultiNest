@@ -147,6 +147,9 @@ int main(int argc, char *argv[])
 	
 	double logZero = -DBL_MAX;			// points with loglike < logZero will be ignored by MultiNest
 	
+	int maxiter = 0;				// max no. of iterations, a non-positive value means infinity. MultiNest will terminate if either it 
+							// has done max no. of iterations or convergence criterion (defined through tol) has been satisfied
+	
 	void *context = 0;				// not required by MultiNest, any additional information user wants to pass
 
 	
@@ -154,8 +157,8 @@ int main(int argc, char *argv[])
 	// calling MultiNest
 	
 	
-	run(mmodal, ceff, nlive, tol, efr, ndims, nPar, nClsPar, maxModes, updInt, Ztol, root, seed, pWrap, fb, resume, outfile, initMPI, logZero,
-	LogLike, dumper, context);
+	run(mmodal, ceff, nlive, tol, efr, ndims, nPar, nClsPar, maxModes, updInt, Ztol, root, seed, pWrap, fb, resume, outfile, initMPI, 
+	logZero, maxiter, LogLike, dumper, context);
 }
 
 /***********************************************************************************************************************/

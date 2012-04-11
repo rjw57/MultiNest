@@ -25,7 +25,7 @@ subroutine nest_Sample
 	
    	call nestRun(nest_mmodal,nest_ceff,nest_nlive,nest_tol,nest_efr,sdim,nest_nPar, &
    	nest_nClsPar,nest_maxModes,nest_updInt,nest_Ztol,nest_root,nest_rseed,nest_pWrap, &
-   	nest_fb,nest_resume,nest_outfile,nest_initMPI,nest_logZero,getLogLike,dumper,context)
+   	nest_fb,nest_resume,nest_outfile,nest_initMPI,nest_logZero,nest_maxIter,getLogLike,dumper,context)
 
 end subroutine nest_Sample
 

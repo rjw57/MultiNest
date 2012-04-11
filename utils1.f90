@@ -61,7 +61,7 @@ contains
     
       !check for inf & nan
       do i=1,n
-    	if(isnan(diag(i)) .or. diag(i)>huge(1d0)) then
+    	if(diag(i)/=diag(i) .or. diag(i)>huge(1d0)) then
 		diag=1d0
 		a=0d0
 		do j=1,n

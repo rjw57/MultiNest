@@ -1,4 +1,4 @@
-MultiNest v 2.16
+MultiNest v 2.17
 Farhan Feroz, Mike Hobson
 f.feroz@mrao.cam.ac.uk
 arXiv:0704.3704 & arXiv:0809.3437
@@ -30,7 +30,7 @@ restriction imposed by gfortran on line length.
 The subtoutine to begin MultiNest are as follows:
 
 subroutine nestRun(mmodal, ceff, nlive, tol, efr, ndims, nPar, nCdims, maxModes, updInt, Ztol, root, seed,
-pWrap, feedback, resume, outfile, initMPI, logZero, loglike, context)
+pWrap, feedback, resume, outfile, initMPI, logZero, maxiter, loglike, dumper, context)
 
 logical mmodal 	 								!do mode separation?
 integer nlive 	 								!number of live points
@@ -52,6 +52,8 @@ logical outfile									!write output files?
 logical initMPI									!initialize MPI routines?, relevant only if compiling with MPI
 										!set it to F if you want your main program to handle MPI initialization
 double precision logZero							!points with loglike < logZero will be ignored by MultiNest
+integer maxiter									!max no. of iterations, a non-positive value means infinity. MultiNest will terminate if either it 
+										!has done max no. of iterations or convergence criterion (defined through tol) has been satisfied
 loglike(Cube,ndims,nPar,lnew) 							!subroutine which gives lnew=loglike(Cube(ndims))
 dumper(nSamples,nlive,nPar,physLive,posterior,paramConstr,maxloglike,logZ,c)	!subroutine called after every updInt*10 iterations with the posterior 
 										!distribution, parameter constraints, max loglike & log evidence values
