@@ -197,9 +197,9 @@ contains
 		endif
       
 		write(*,*)"*****************************************************"
-		write(*,*)"MultiNest v2.15"
+		write(*,*)"MultiNest v2.16"
       		write(*,*)"Copyright Farhan Feroz & Mike Hobson"
-      		write(*,*)"Release Feb 2012"
+      		write(*,*)"Release Mar 2012"
 		write(*,*)
       		write(*,'(a,i4)')" no. of live points = ",nest_nlive
       		write(*,'(a,i4)')" dimensionality = ",nest_ndims
@@ -1072,7 +1072,7 @@ contains
 					q=sum(ic_npt(1:i))
 					do j=i+1,ic_n
 						if(ic_rFlag(j)) then
-							!father node
+							!parent node
 							k=ic_fNode(j)
 							!divide prior volume
 							ic_vnow(j)=ic_vnow(k)*dble(ic_npt(j))/dble(nptk(k))
@@ -1080,9 +1080,9 @@ contains
 							ic_zold(j)=ic_z(k)
 							ic_Z(j)=log(dble(ic_npt(j))/dble(nptk(k)))+ic_Z(k)
 							ic_info(j)=ic_info(k)*dble(ic_npt(j))/dble(nptk(k))*exp(ic_zold(j)-ic_z(j))
-							!note the father node
-							nodek(k)=1
+							nodek(k)=1 !note the parent node
 							ic_hilike(j)=maxval(l(q+1:q+ic_npt(j)))
+							if(ic_hilike(j)-minval(l(q+1:q+ic_npt(j)))<= 0.0001) ic_done(j)=.true.
 							if(ceff) then
 								ic_eff(j,1:2)=0d0
 								ic_eff(j,3:4)=ic_eff(k,3:4)
@@ -1115,6 +1115,7 @@ contains
 								ic_info(j)=ic_info(j)*dble(ic_npt(j))/dble(nptk(j))*exp(ic_zold(j)-ic_z(j))
 							endif
 							ic_hilike(j)=maxval(l(q+1:q+ic_npt(j)))
+							if(ic_hilike(j)-minval(l(q+1:q+ic_npt(j)))<= 0.0001) ic_done(j)=.true.
 							if(ceff) ic_eff(j,1:2)=0d0
 							
 							sc_npt(m+1)=ic_npt(j)
@@ -1413,6 +1414,7 @@ contains
 		if(modeFound) then
 			call MPI_BCAST(ic_n,1,MPI_INTEGER,0,MPI_COMM_WORLD,errcode)
 			call MPI_BCAST(ic_npt(1:ic_n),ic_n,MPI_INTEGER,0,MPI_COMM_WORLD,errcode)
+    			call MPI_BCAST(ic_done(0:ic_n),ic_n+1,MPI_LOGICAL,0,MPI_COMM_WORLD,errcode)
 		endif
 		
 		if(flag2 .and. eswitch) then
@@ -1430,7 +1432,7 @@ contains
 
 		nd_i=0 !no. of ellipsoids traversed
 		nd_j=0 !no. of points traversed
-		do nd=1,ic_n
+		do nd=1,ic_n	
 			if(ic_done(nd)) then
 				nd_i=nd_i+ic_sc(nd)
 				nd_j=nd_j+ic_npt(nd)
@@ -1882,7 +1884,6 @@ contains
 					
 					lowlike=minval(l(nd_j+1:nd_j+ic_npt(nd)))
 				
-					!write the output files
 					if(abs(lowlike-ic_hilike(nd))<= 0.0001 .or. (ic_inc(nd)<log(tol) .and. &
 					globff-nlive>50) .or. ff==maxIter) then
 						ic_done(nd)=.true.

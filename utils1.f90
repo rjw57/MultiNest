@@ -17,12 +17,12 @@ contains
  subroutine Diagonalize(a,diag,n,switch)
 	!Does m = U diag U^T, returning U in m
 	integer n,id
-	real*8 a(n,n),diag(n)
+	double precision a(n,n),diag(n)
 	logical switch
-	integer ierr,il,iu,m,isuppz(2*n)
-	real*8 vl,vu,abstol,z(n,n)
-      real*8, dimension(:), allocatable :: work
-      integer, dimension(:), allocatable :: iwork
+	integer i,j,ierr,il,iu,m,isuppz(2*n)
+	double precision vl,vu,abstol,z(n,n)
+	double precision, dimension(:), allocatable :: work
+	integer, dimension(:), allocatable :: iwork
 
 	diag=0.
       abstol=0.
@@ -45,19 +45,31 @@ contains
             	liwork=iwork(1)
             	deallocate(work,iwork)
             	setBlk=.true.
-		else
+	else
             	do
                   	!$OMP FLUSH(setBlk)
                   	if(setBlk) exit
-			enddo
-		end if
-	endif 
+		enddo
+	end if
+      endif 
       	
       allocate(work(lwork),iwork(liwork))
       call DSYEVR( 'V', 'A', 'U', n, a, n, vl, vu, il, iu, &
       abstol, m, diag, Z, n, isuppz, work, lwork, iwork, liwork, ierr )
       a=z
-      deallocate(work,iwork)      
+      deallocate(work,iwork)
+    
+      !check for inf & nan
+      do i=1,n
+    	if(isnan(diag(i)) .or. diag(i)>huge(1d0)) then
+		diag=1d0
+		a=0d0
+		do j=1,n
+			a(j,j)=1d0
+		enddo
+		exit
+	endif
+      enddo
 	  
  end subroutine Diagonalize
 
@@ -65,7 +77,7 @@ contains
 
 ! LogSumExp(x,y)=log(exp(x)+exp(y))
   double precision function LogSumExp(x,y)
-    real*8 x,y
+    double precision x,y
 
     if (x.gt.y) then
        LogSumExp=x+log(1+exp(y-x))
@@ -81,9 +93,9 @@ contains
   subroutine calc_covmat(npt,np,p,mean,covmat)
     implicit none
     integer np,npt
-    real*8 p(:,:)
-    real*8 covmat(:,:)
-    real*8 mean(:)
+    double precision p(:,:)
+    double precision covmat(:,:)
+    double precision mean(:)
     integer i,j,ip
 
     covmat=0.
@@ -106,9 +118,9 @@ contains
   subroutine calc_covmat_wt(npt,np,p,wt,mean,covmat)
     implicit none
     integer np,npt
-    real*8 p(:,:),wt(:)
-    real*8 covmat(:,:)
-    real*8 mean(:)
+    double precision p(:,:),wt(:)
+    double precision covmat(:,:)
+    double precision mean(:)
     integer i,j,ip
 
     covmat=0.
@@ -131,8 +143,8 @@ contains
   subroutine calc_invcovmat(numdim,evec,eval,invcov)
     implicit none
     integer numdim !num of dimensions & points
-    real*8 evec(:,:),eval(:) !eigenvectors & eigenvalues
-    real*8 invcov(:,:)
+    double precision evec(:,:),eval(:) !eigenvectors & eigenvalues
+    double precision invcov(:,:)
     integer i,j,k
 
     invcov=0d0
@@ -154,13 +166,13 @@ contains
   subroutine ScaleFactor(npt,ndim,pt,mean,inv_cov,kmax)
     implicit none
  
-    real*8 kmax
+    double precision kmax
     integer npt,ndim
-    real*8 pt(ndim,npt),ptM(1,ndim),sf(1,1)
+    double precision pt(ndim,npt),ptM(1,ndim),sf(1,1)
     integer i,k
-    real*8 inv_cov(ndim,ndim)
-    real*8 mean(ndim)
-    real*8 temp_p(ndim,npt)
+    double precision inv_cov(ndim,ndim)
+    double precision mean(ndim)
+    double precision temp_p(ndim,npt)
     
     do i=1,ndim
 	temp_p(i,1:npt)=pt(i,1:npt)-mean(i)
@@ -179,14 +191,14 @@ contains
    
 !----------------------------------------------------------------------	
  
- real*8 function ptScaleFac(ndim,pt,meanx,invcovx)
+ double precision function ptScaleFac(ndim,pt,meanx,invcovx)
  	
 	implicit none
       
 	integer ndim!dimensionality
-      	real*8 pt(ndim),point(1,ndim)!point to be checked
-      	real*8 meanx(ndim),invcovx(ndim,ndim)!cluster attributes
-      	real*8 kfac(1,1)!k factor of present point
+      	double precision pt(ndim),point(1,ndim)!point to be checked
+      	double precision meanx(ndim),invcovx(ndim,ndim)!cluster attributes
+      	double precision kfac(1,1)!k factor of present point
       
       	point(1,:)=pt(:)-meanx(:)
 	kfac=MATMUL(MATMUL(point,invcovx),Transpose(point))
@@ -200,9 +212,9 @@ contains
     
     implicit none
  
-    real*8 TMatrix(ndim,ndim),evec(ndim,ndim),eval(ndim)
+    double precision TMatrix(ndim,ndim),evec(ndim,ndim),eval(ndim)
     integer ndim,np,i,j
-    real*8 TMat(ndim,ndim)
+    double precision TMat(ndim,ndim)
     
     np=ndim
     TMatrix=evec
@@ -220,15 +232,15 @@ contains
 !----------------------------------------------------------------------
 
   !return the Mahalanobis distance of a point from the given ellipsoid
-  real*8 function MahaDis(ndim,pt,mean,inv_cov,kfac)
+  double precision function MahaDis(ndim,pt,mean,inv_cov,kfac)
     implicit none
     
     !input varaibles
     integer ndim !dimensionality
-    real*8 pt(ndim) !point
-    real*8 mean(ndim) !centroid of the ellipsoid
-    real*8 inv_cov(ndim,ndim) !inv covariance matrix of the ellipsoid
-    real*8 kfac !enlargement factor
+    double precision pt(ndim) !point
+    double precision mean(ndim) !centroid of the ellipsoid
+    double precision inv_cov(ndim,ndim) !inv covariance matrix of the ellipsoid
+    double precision kfac !enlargement factor
     
     MahaDis=ptScaleFac(ndim,pt,mean,inv_cov)/kfac
     
@@ -241,7 +253,7 @@ contains
     implicit none
     
     integer ndim
-    real*8 eval(ndim),k_fac,pi
+    double precision eval(ndim),k_fac,pi
     integer i
     
     pi=4.d0*atan(1.d0)
@@ -267,7 +279,7 @@ contains
     implicit none
     
     integer np,i,id
-    real*8 u(:), mod, urv
+    double precision u(:), mod, urv
   
     mod=0d0
     do i=1,np
@@ -287,7 +299,7 @@ contains
     implicit none
     
     integer np,i,id
-    real*8 u(:), mod
+    double precision u(:), mod
   
     mod=0.d0
     do i=1,np
@@ -309,22 +321,22 @@ contains
     !input variables
     integer npt !no. of points
     integer ndim !dimensionality
-    real*8 pt(ndim,npt) !points
-    real*8 pVol !min vol this ellipsoid should occupy
+    double precision pt(ndim,npt) !points
+    double precision pVol !min vol this ellipsoid should occupy
     logical switch !initialize the LAPACK eigen analysis routines?
     !output variables
-    real*8 mean(ndim) !mean
-    real*8 covmat(ndim,ndim) !covariance matrix
-    real*8 invcov(ndim,ndim) !inverse covariance matrix
-    real*8 tMat(ndim,ndim) !transformation matrix
-    real*8 evec(ndim,ndim) !eigenvectors
-    real*8 eval(ndim)
-    real*8 detcov !determinant of the covariance matrix
-    real*8 kfac !enlargement point factor
-    real*8 eff !enlargement volume factor
-    real*8 vol !ellipsoid volume
+    double precision mean(ndim) !mean
+    double precision covmat(ndim,ndim) !covariance matrix
+    double precision invcov(ndim,ndim) !inverse covariance matrix
+    double precision tMat(ndim,ndim) !transformation matrix
+    double precision evec(ndim,ndim) !eigenvectors
+    double precision eval(ndim)
+    double precision detcov !determinant of the covariance matrix
+    double precision kfac !enlargement point factor
+    double precision eff !enlargement volume factor
+    double precision vol !ellipsoid volume
     !work variables
-    integer i
+    integer i,j
     
     !calculate the mean
     do i=1,ndim
@@ -345,6 +357,7 @@ contains
     !eigen analysis
     evec=covmat
     call Diagonalize(evec,eval,ndim,switch)
+    
     !eigenvalues of covariance matrix can't be zero
     do i=1,ndim-1
 	if(eval(i)<=0.d0) eval(1:i)=eval(i+1)/2.
@@ -389,21 +402,21 @@ contains
     !input variables
     integer npt !no. of points
     integer ndim !dimensionality
-    real*8 pt(ndim,npt) !points
+    double precision pt(ndim,npt) !points
     integer minPt
     !output variables
-    real*8 mean(ndim) !centroid
-    real*8 invcov(ndim,ndim) !inverse covariance matrix
-    real*8 tMat(ndim,ndim) !transformation matrix
-    real*8 evec(ndim,ndim) !eigenvectors
-    real*8 eval(ndim) !eigenvalues
-    real*8 kfac !multiplicative factor for covmat for bounding ell
+    double precision mean(ndim) !centroid
+    double precision invcov(ndim,ndim) !inverse covariance matrix
+    double precision tMat(ndim,ndim) !transformation matrix
+    double precision evec(ndim,ndim) !eigenvectors
+    double precision eval(ndim) !eigenvalues
+    double precision kfac !multiplicative factor for covmat for bounding ell
     !work variables
-    real*8 sigma(ndim)
+    double precision sigma(ndim)
     integer i,j,k,n
     parameter(n=0)
-    real*8 covmat(ndim,ndim),ptk(ndim,npt),dist(npt)
-    real*8 maxIndx(n,2)
+    double precision covmat(ndim,ndim),ptk(ndim,npt),dist(npt)
+    double precision maxIndx(n,2)
     integer nOut,ptOut(n),nptk
     logical flag
     
@@ -518,14 +531,14 @@ contains
 	
 	!input variables
 	integer ndim !dimensionality
-	real*8 mean(ndim) !centroid of the given ellipsoid
-	real*8 efac !enlargement factor of the given ellipsoid
-	real*8 TMat(ndim,ndim) !transformation matrix of the given ellipsoid
+	double precision mean(ndim) !centroid of the given ellipsoid
+	double precision efac !enlargement factor of the given ellipsoid
+	double precision TMat(ndim,ndim) !transformation matrix of the given ellipsoid
 	integer id !processor id (for OpenMP)
 	!output variable
-	real*8 pt(ndim)
+	double precision pt(ndim)
 	!work variables
-	real*8 u(1,ndim),pnewM(1,ndim)
+	double precision u(1,ndim),pnewM(1,ndim)
 	
 	call genPtInSpheroid(ndim,u(1,:),id)
 	pnewM=MatMul(u,TMat)
@@ -541,14 +554,14 @@ contains
 	
 	!input variables
 	integer ndim !dimensionality
-	real*8 mean(ndim) !centroid of the given ellipsoid
-	real*8 efac !enlargement factor of the given ellipsoid
-	real*8 TMat(ndim,ndim) !transformation matrix of the given ellipsoid
+	double precision mean(ndim) !centroid of the given ellipsoid
+	double precision efac !enlargement factor of the given ellipsoid
+	double precision TMat(ndim,ndim) !transformation matrix of the given ellipsoid
 	integer id !processor id (for OpenMP)
 	!output variable
-	real*8 pt(ndim)
+	double precision pt(ndim)
 	!work variables
-	real*8 u(1,ndim),pnewM(1,ndim)
+	double precision u(1,ndim),pnewM(1,ndim)
 	
 	call genPtOnSpheroid(ndim,u(1,:),id)
 	pnewM=MatMul(u,TMat)
@@ -567,20 +580,20 @@ contains
 	integer a_r !if 0 then point rejected, 1 then point inserted
 	integer npt !no. of points after rejection or before insertion
 	integer ndim !dimensionality
-	real*8 newpt(ndim) !point to be rejected/inserted
-	real*8 pts(ndim,npt) !point set after rejection or before insertion
-	real*8 mean(ndim) !centroid of the ellipsoid
-	real*8 eval(ndim) !eigenvalues of the ellipsoid
-	real*8 invcov(ndim,ndim) !inverse covariance matrix of the ellipsoid
-	real*8 pVol !target volume
+	double precision newpt(ndim) !point to be rejected/inserted
+	double precision pts(ndim,npt) !point set after rejection or before insertion
+	double precision mean(ndim) !centroid of the ellipsoid
+	double precision eval(ndim) !eigenvalues of the ellipsoid
+	double precision invcov(ndim,ndim) !inverse covariance matrix of the ellipsoid
+	double precision pVol !target volume
 	
 	!input/output variables
-	real*8 kfac !input (output): point enlargement before (after) rejection/insertion
-	real*8 eff !input (output): volume enlargement before (after) rejection/insertion
-	real*8 vol !input (output): volume before (after) rejection/insertion
+	double precision kfac !input (output): point enlargement before (after) rejection/insertion
+	double precision eff !input (output): volume enlargement before (after) rejection/insertion
+	double precision vol !input (output): volume before (after) rejection/insertion
 	
 	!work variables
-	real*8 new_pt(ndim,1),new_kfac
+	double precision new_pt(ndim,1),new_kfac
 	
 	
 	!sanity check
@@ -675,19 +688,19 @@ contains
 	implicit none
     	!input variables
 	integer ndim !dimensionality
-	real*8 newpt(ndim) !point to be inserted
-	real*8 mean(ndim) !centroid of the ellipsoid
-	real*8 eval(ndim) !eigenvalues of the ellipsoid
-	real*8 invcov(ndim,ndim) !inverse covariance matrix of the ellipsoid
-	real*8 pVol !target volume
+	double precision newpt(ndim) !point to be inserted
+	double precision mean(ndim) !centroid of the ellipsoid
+	double precision eval(ndim) !eigenvalues of the ellipsoid
+	double precision invcov(ndim,ndim) !inverse covariance matrix of the ellipsoid
+	double precision pVol !target volume
 	
 	!input/output variables
-	real*8 kfac !input (output): point enlargement before (after) insertion
-	real*8 eff !input (output): volume enlargement before (after) insertion
-	real*8 vol !input (output): volume before (after) insertion
+	double precision kfac !input (output): point enlargement before (after) insertion
+	double precision eff !input (output): volume enlargement before (after) insertion
+	double precision vol !input (output): volume before (after) insertion
 	
 	!work variables
-	real*8 new_pt(ndim,1),d1
+	double precision new_pt(ndim,1),d1
 	
 	
 	!find new kfac
@@ -715,7 +728,7 @@ contains
     
     logical inprior
     integer np, i
-    real*8 p(np)
+    double precision p(np)
     
     inprior = .true.
     
@@ -881,8 +894,8 @@ contains
   END FUNCTION erf
   
   
-  real*8 function stNormalCDF(x)
-  	real*8 x
+  double precision function stNormalCDF(x)
+  	double precision x
      
      	if(x>6.) then
       	stNormalCDF=1.
@@ -935,11 +948,11 @@ contains
 
   subroutine piksrt(n,n1,arr,arr1)
   	integer n,n1
-  	real*8 arr(n)
-  	real*8 arr1(n1,n)
+  	double precision arr(n)
+  	double precision arr1(n1,n)
   	integer i,j
-  	real*8 a
-  	real*8 a1(n1)
+  	double precision a
+  	double precision a1(n1)
   	do j=2,n
      		a=arr(j)
      		a1(1:n1)=arr1(1:n1,j)
@@ -957,21 +970,21 @@ contains
 
 !----------------------------------------------------------------------
   !calculation the multivariate normal function
-  real*8 function mNormalF(d,x,mu,C)
+  double precision function mNormalF(d,x,mu,C)
   	integer d !dimension
-      real*8 x(d) !data vector
-      real*8 mu(d) !mean
-      real*8 C(d,d) !covariance matrix
-      real*8 a(d) !residual vector (x-mu)
+      double precision x(d) !data vector
+      double precision mu(d) !mean
+      double precision C(d,d) !covariance matrix
+      double precision a(d) !residual vector (x-mu)
       integer i
-      real*8 Chisq,sqrD
-      real*8 TwoPi
+      double precision Chisq,sqrD
+      double precision TwoPi
       Parameter(TwoPi=6.283185307)
-      real*8 b(d)
+      double precision b(d)
       
       !DCHDC routine variables
       integer INFO
-      real*8 L(d,d) !cholesky decomposition matrix
+      double precision L(d,d) !cholesky decomposition matrix
       
       !compute the Cholesky decomposition of the covariance matrix 'C'
       !C = L^T.L
@@ -1002,13 +1015,13 @@ contains
 
 !----------------------------------------------------------------------
   !calculation the cumulative Gaussian mixture probability in 1-D
-  real*8 function cGaussMix(nClstr,pPt,pMean,pCov,wt)
+  double precision function cGaussMix(nClstr,pPt,pMean,pCov,wt)
   	integer nClstr !no. of cluster
-      real*8 pPt !point
-      real*8 pMean(nClstr),pCov(nClstr) !projected mean & variance of clusters
-      real*8 wt(nClstr)
+      double precision pPt !point
+      double precision pMean(nClstr),pCov(nClstr) !projected mean & variance of clusters
+      double precision wt(nClstr)
       integer i
-      real*8 z
+      double precision z
       
       cGaussMix=0.
       do i=1,nClstr
@@ -1025,9 +1038,9 @@ contains
       implicit none
       
       integer ndim
-      real*8 pt(:),point(1,ndim)!point to be checked
-      real*8 meanx(:),invcovx(:,:),kfacx!cluster attributes
-      real*8 kfac!k factor of present point
+      double precision pt(:),point(1,ndim)!point to be checked
+      double precision meanx(:),invcovx(:,:),kfacx!cluster attributes
+      double precision kfac!k factor of present point
       
       ptIn1Ell=.false.
         
@@ -1053,11 +1066,11 @@ contains
       integer npt !no. of points in the mode
       
       !input/output variables
-      real*8 vol !ellipsoid volume
-      real*8 eff !enlargement
+      double precision vol !ellipsoid volume
+      double precision eff !enlargement
       
       !work variables
-      real*8 d1
+      double precision d1
       
       if(eff>1d0) then
       	d1=eff

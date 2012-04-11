@@ -6,6 +6,9 @@
        #error Don't know how to link to Fortran libraries, check symbol table for your platform (nm libnest3.a | grep nestrun) & edit example_eggbox_C/eggbox.c
 #endif
 
+#ifndef MULTINEST_H
+#define MULTINEST_H
+
 
 /***************************************** C Interface to MultiNest **************************************************/
 
@@ -26,3 +29,5 @@ double *, double *, double *, void *), void *context)
 }
 
 /***********************************************************************************************************************/
+
+#endif // MULTINEST_H

@@ -3,14 +3,18 @@
 #elif defined __GNUC__ 				// if the MultiNest library was compiled with gfortran
        #define NESTRUN __nested_MOD_nestrun
 #else
-       #error Don't know how to link to Fortran libraries, check symbol table for your platform (nm libnest3.a | grep nestrun) & edit example_eggbox_C++/eggbox.cc
+       #error Do not know how to link to Fortran libraries, check symbol table for your platform (nm libnest3.a | grep nestrun) & edit example_eggbox_C++/eggbox.cc
 #endif
 
+#ifndef MULTINEST_H
+#define MULTINEST_H
 
 /***************************************** C++ Interface to MultiNest **************************************************/
+#include <cstring>
 
 namespace nested
 {
+
 	// map the Fortran 90 entry points of libnest3.a to C++ functions
 
 	// module nested, function nestRun maps to nested::run
@@ -46,16 +50,19 @@ namespace nested
 			int y_stride, y_lbound, y_ubound;
 	};
 	
-	extern "C" void NESTRUN(int &mmodal, int &ceff, int &nlive, double &tol, double &efr, int &ndims, 
-	int &nPar, int &nClsPar, int &maxModes, int &updInt, double &Ztol, char *root, int &seed, 
-	int *pWrap, int &fb, int &resume, int &outfile, int &initMPI, double &logZero, 
-	void (*Loglike)(double *Cube, int &n_dim, int &n_par, double &lnew, void *), 
-	void (*dumper)(int &, int &, int &, double **, double **, double **, double &, double &, double &, void *), void *context, int &root_len);
+	extern "C" {
+		void NESTRUN(int &mmodal, int &ceff, int &nlive, double &tol, double &efr, int &ndims,
+			int &nPar, int &nClsPar, int &maxModes, int &updInt, double &Ztol, char *root, int &seed,
+			int *pWrap, int &fb, int &resume, int &outfile, int &initMPI, double &logZero,
+			void (*Loglike)(double *Cube, int &n_dim, int &n_par, double &lnew, void *),
+			void (*dumper)(int &, int &, int &, double **, double **, double **, double &, double &, double &, void *),
+			void *context, int &root_len);
+	}
 
-	void run(bool mmodal, bool ceff, int nlive, double tol, double efr, int ndims, int nPar, int nClsPar, int maxModes, 
-	int updInt, double Ztol, const std::string &root, int seed, int *pWrap, bool fb, bool resume, bool outfile, bool initMPI, double logZero,
-	void (*LogLike)(double *Cube, int &n_dim, int &n_par, double &lnew, void *), 
-	void (*dumper)(int &, int &, int &, double **, double **, double **, double &, double &, double &, void *), void *context)
+	static void run(bool mmodal, bool ceff, int nlive, double tol, double efr, int ndims, int nPar, int nClsPar, int maxModes,
+		int updInt, double Ztol, const std::string & root, int seed, int *pWrap, bool fb, bool resume, bool outfile, bool initMPI, double logZero,
+		void (*LogLike)(double *Cube, int &n_dim, int &n_par, double &lnew, void *),
+		void (*dumper)(int &, int &, int &, double **, double **, double **, double &, double &, double &, void *), void *context)
 	{
 		char t_root[100];
 		std::fill(t_root, t_root + 100, ' ');
@@ -76,3 +83,5 @@ namespace nested
 }
 
 /***********************************************************************************************************************/
+
+#endif // MULTINEST_H
