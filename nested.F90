@@ -64,8 +64,8 @@ contains
 	
 	INTERFACE
 		!the user dumper function
-    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
-			integer nSamples, nlive, nPar
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr, context_pass)
+			integer nSamples, nlive, nPar, context_pass
 			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
 			double precision maxLogLike, logZ, logZerr
 		end subroutine dumper
@@ -197,9 +197,9 @@ contains
 		endif
       
 		write(*,*)"*****************************************************"
-		write(*,*)"MultiNest v2.14"
+		write(*,*)"MultiNest v2.15"
       		write(*,*)"Copyright Farhan Feroz & Mike Hobson"
-      		write(*,*)"Release Nov 2011"
+      		write(*,*)"Release Feb 2012"
 		write(*,*)
       		write(*,'(a,i4)')" no. of live points = ",nest_nlive
       		write(*,'(a,i4)')" dimensionality = ",nest_ndims
@@ -216,7 +216,7 @@ contains
 		endif
 	endif
 	
-	call Nestsample(loglike, dumper)
+	call Nestsample(loglike, dumper, context)
 	deallocate(pWrap)
       	call killRandomNS()
 #ifdef MPI
@@ -227,10 +227,11 @@ contains
 
 !----------------------------------------------------------------------
 
-  subroutine Nestsample(loglike, dumper)
+  subroutine Nestsample(loglike, dumper, context)
 	
 	implicit none
 	
+	integer context
 	double precision, allocatable :: p(:,:), phyP(:,:) !live points
 	double precision, allocatable :: l(:) !log-likelihood
 	double precision vnow1!current vol
@@ -249,8 +250,8 @@ contains
 	
 	INTERFACE
 		!the user dumper function
-    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
-			integer nSamples, nlive, nPar
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr, context_pass)
+			integer nSamples, nlive, nPar, context_pass
 			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
 			double precision maxLogLike, logZ, logZerr
 		end subroutine dumper
@@ -327,7 +328,7 @@ contains
 	if(genLive) then
 		if(my_rank==0 .and. fback) write(*,*) 'generating live points'
 		
-		call gen_initial_live(p,phyP,l,loglike,dumper)
+		call gen_initial_live(p,phyP,l,loglike,dumper,context)
 	
 		if(my_rank==0) then
 			globff=nlive
@@ -340,7 +341,7 @@ contains
 	call MPI_BARRIER(MPI_COMM_WORLD,errcode)
 #endif
 	
-	call clusteredNest(p,phyP,l,loglike,dumper)
+	call clusteredNest(p,phyP,l,loglike,dumper,context)
 	
 	if(my_rank==0) then
 		write(*,*)"ln(ev)=",gZ,"+/-",sqrt(ginfo/dble(nlive))
@@ -355,11 +356,11 @@ contains
 
 !----------------------------------------------------------------------
 
-  subroutine gen_initial_live(p,phyP,l,loglike,dumper)
+  subroutine gen_initial_live(p,phyP,l,loglike,dumper,context)
     
 	implicit none
     
-    	integer i,j,iostatus,idum,k,m,nptPerProc,nGen,nstart,nend
+    	integer i,j,iostatus,idum,k,m,nptPerProc,nGen,nstart,nend,context
     	double precision, allocatable :: pnewP(:,:), phyPnewP(:,:), lnewP(:)
     	double precision p(ndims,nlive+1), phyP(totPar,nlive+1), l(nlive+1)
     	integer id
@@ -379,8 +380,8 @@ contains
 	
 	INTERFACE
 		!the user dumper function
-    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
-			integer nSamples, nlive, nPar
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr, context_pass)
+			integer nSamples, nlive, nPar, context_pass
 			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
 			double precision maxLogLike, logZ, logZerr
 		end subroutine dumper
@@ -494,7 +495,7 @@ contains
             	do
 			call getrandom(ndims,pnewP(:,j),id)  ! start points
 			phyPnewP(1:ndims,j)=pnewP(1:ndims,j)
-			call loglike(phyPnewP(:,j),ndims,totPar,lnewP(j),id+1)
+			call loglike(phyPnewP(:,j),ndims,totPar,lnewP(j),context)
                   	if(lnewP(j)>logZero) exit
 		enddo
 		if(k==nptPerProc .or. j==10) then
@@ -592,13 +593,14 @@ contains
 
 !----------------------------------------------------------------------
   
-  subroutine clusteredNest(p,phyP,l,loglike,dumper)
+  subroutine clusteredNest(p,phyP,l,loglike,dumper,context)
   	
 	implicit none
 	
 	
 	!input variables
 	
+	integer context
 	double precision p(ndims,nlive+1) !live points
 	double precision phyP(totPar,nlive+1) !physical live points
 	double precision l(nlive+1) !log-likelihood
@@ -686,8 +688,8 @@ contains
 	
 	INTERFACE
 		!the user dumper function
-    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
-			integer nSamples, nlive, nPar
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr, context_pass)
+			integer nSamples, nlive, nPar, context_pass
 			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
 			double precision maxLogLike, logZ, logZerr
 		end subroutine dumper
@@ -961,7 +963,7 @@ contains
                 		if(fback) call gfeedback(gZ,numlike,globff,.false.)
 				call pos_samp(Ztol,globff,broot,nlive,ndims,nCdims,totPar,multimodal,outfile,gZ,ginfo,ic_n,ic_Z(1:ic_n), &
 				ic_info(1:ic_n),ic_reme(1:ic_n),ic_vnow(1:ic_n),ic_npt(1:ic_n),ic_nBrnch(1:ic_n),ic_brnch(1:ic_n,:,1),phyP(:,1:nlive), &
-				l(1:nlive),evDataAll,dumper)
+				l(1:nlive),evDataAll,dumper,context)
 				
 				!if done then add in the contribution to the global evidence from live points
 				j=0
@@ -1503,7 +1505,7 @@ contains
 #endif
 	                  			if(.not.remFlag) then
 	            					!generate mpi_nthreads potential points
-							call samp(pnew,phyPnew,lnew,sc_mean(1,:),d1,sc_tMat(1,:,:),ic_climits(nd,:,:),loglike,eswitch)
+							call samp(pnew,phyPnew,lnew,sc_mean(1,:),d1,sc_tMat(1,:,:),ic_climits(nd,:,:),loglike,eswitch,context)
 						
 							if(my_rank==0) then
 								lnewa(nd,1)=lnew
@@ -1609,7 +1611,7 @@ contains
 						
 							!generate mpi_nthreads potential points
 							d1=sc_kfac(i)*sc_eff(i)
-							call samp(pnew,phyPnew,lnew,sc_mean(i,:),d1,sc_tMat(i,:,:),ic_climits(nd,:,:),loglike,eswitch)
+							call samp(pnew,phyPnew,lnew,sc_mean(i,:),d1,sc_tMat(i,:,:),ic_climits(nd,:,:),loglike,eswitch,context)
 							if(my_rank==0) then
 								lnewa(nd,1)=lnew
 						
@@ -2019,7 +2021,7 @@ contains
 					
 					if(mod(sff,updInt*10)==0 .or. ic_done(0)) call pos_samp(Ztol,globff,broot,nlive,ndims,nCdims,totPar, &
 					multimodal,outfile,gZ,ginfo,ic_n,ic_Z(1:ic_n),ic_info(1:ic_n),ic_reme(1:ic_n),ic_vnow(1:ic_n), &
-					ic_npt(1:ic_n),ic_nBrnch(1:ic_n),ic_brnch(1:ic_n,:,1),phyP(:,1:nlive),l(1:nlive),evDataAll,dumper)
+					ic_npt(1:ic_n),ic_nBrnch(1:ic_n),ic_brnch(1:ic_n,:,1),phyP(:,1:nlive),l(1:nlive),evDataAll,dumper,context)
 				endif
 			endif
 			
@@ -2182,7 +2184,7 @@ contains
 
 !---------------------------------------------------------------------- 
   !sample a point inside the given ellipsoid with log-likelihood>lboundary
-  subroutine samp(pnew,phyPnew,lnew,mean,ekfac,TMat,limits,loglike,eswitch)
+  subroutine samp(pnew,phyPnew,lnew,mean,ekfac,TMat,limits,loglike,eswitch,context)
 	
 	implicit none
 	double precision lnew
@@ -2190,7 +2192,7 @@ contains
     	double precision mean(ndims),TMat(ndims,ndims)
 	double precision limits(ndims,2)
     	logical eswitch
-    	integer id,i
+    	integer id,i,context
     
     	INTERFACE
     		!the likelihood function
@@ -2206,7 +2208,7 @@ contains
 		!generate a random point inside unit hypercube
 		call getrandom(ndims,pnew(1:ndims),id)
 		phyPnew(1:ndims)=pnew(1:ndims)
-    		call loglike(phyPnew,ndims,totPar,lnew,id+1)
+    		call loglike(phyPnew,ndims,totPar,lnew,context)
     	else
 		do
 			!generate a point uniformly inside the given ellipsoid
@@ -2219,7 +2221,7 @@ contains
 			enddo
 			if(.not.inprior(ndims,spnew(1:ndims))) cycle
 			phyPnew(1:ndims)=spnew(1:ndims)
-    			call loglike(phyPnew,ndims,totPar,lnew,id+1)
+    			call loglike(phyPnew,ndims,totPar,lnew,context)
 			if(lnew>logZero) exit
 		enddo
       	endif

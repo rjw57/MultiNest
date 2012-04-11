@@ -7,7 +7,6 @@
 
 
 
-
 /******************************************** loglikelihood routine ****************************************************/
 
 // Now an example, sample an egg box likelihood
@@ -15,6 +14,7 @@
 // Input arguments
 // ndim 						= dimensionality (total number of free parameters) of the problem
 // npars 						= total number of free plus derived parameters
+// context						void pointer, any additional information
 //
 // Input/Output arguments
 // Cube[npars] 						= on entry has the ndim parameters in unit-hypercube
@@ -23,7 +23,7 @@
 // Output arguments
 // lnew 						= loglikelihood
 
-void LogLike(double *Cube, int *ndim, int *npars, double *lnew)
+void LogLike(double *Cube, int *ndim, int *npars, double *lnew, void *context)
 {
 	double chi = 1.0;
 	int i;
@@ -62,8 +62,9 @@ void LogLike(double *Cube, int *ndim, int *npars, double *lnew)
 // maxLogLike						= maximum loglikelihood value
 // logZ							= log evidence value
 // logZerr						= error on log evidence value
+// context						void pointer, any additional information
 
-void dumper(int *nSamples, int *nlive, int *nPar, double **physLive, double **posterior, double **paramConstr, double *maxLogLike, double *logZ, double *logZerr)
+void dumper(int *nSamples, int *nlive, int *nPar, double **physLive, double **posterior, double **paramConstr, double *maxLogLike, double *logZ, double *logZerr, void *context)
 {
 	// convert the 2D Fortran arrays to C arrays
 	
@@ -146,7 +147,7 @@ int main(int argc, char *argv[])
 	
 	double logZero = -DBL_MAX;			// points with loglike < logZero will be ignored by MultiNest
 	
-	int context = 0;				// not required by MultiNest, any additional information user wants to pass
+	void *context = 0;				// not required by MultiNest, any additional information user wants to pass
 
 	
 	

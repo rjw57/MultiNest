@@ -49,13 +49,13 @@ namespace nested
 	extern "C" void NESTRUN(int &mmodal, int &ceff, int &nlive, double &tol, double &efr, int &ndims, 
 	int &nPar, int &nClsPar, int &maxModes, int &updInt, double &Ztol, char *root, int &seed, 
 	int *pWrap, int &fb, int &resume, int &outfile, int &initMPI, double &logZero, 
-	void (*Loglike)(double *Cube, int &n_dim, int &n_par, double &lnew), 
-	void (*dumper)(int &, int &, int &, double **, double **, double **, double &, double &, double &), int &root_len);
+	void (*Loglike)(double *Cube, int &n_dim, int &n_par, double &lnew, void *), 
+	void (*dumper)(int &, int &, int &, double **, double **, double **, double &, double &, double &, void *), void *context, int &root_len);
 
 	void run(bool mmodal, bool ceff, int nlive, double tol, double efr, int ndims, int nPar, int nClsPar, int maxModes, 
 	int updInt, double Ztol, const std::string &root, int seed, int *pWrap, bool fb, bool resume, bool outfile, bool initMPI, double logZero,
-	void (*LogLike)(double *Cube, int &n_dim, int &n_par, double &lnew), 
-	void (*dumper)(int &, int &, int &, double **, double **, double **, double &, double &, double &))
+	void (*LogLike)(double *Cube, int &n_dim, int &n_par, double &lnew, void *), 
+	void (*dumper)(int &, int &, int &, double **, double **, double **, double &, double &, double &, void *), void *context)
 	{
 		char t_root[100];
 		std::fill(t_root, t_root + 100, ' ');
@@ -71,7 +71,7 @@ namespace nested
 		int t_ceff = ceff;
 		
 		NESTRUN(t_mmodal, t_ceff, nlive, tol, efr, ndims, nPar, nClsPar, maxModes, updInt, Ztol, 
-		t_root, seed, pWrap, t_fb, t_resume, t_outfile, t_initMPI, logZero, LogLike, dumper, root_len);
+		t_root, seed, pWrap, t_fb, t_resume, t_outfile, t_initMPI, logZero, LogLike, dumper, context, root_len);
 	}	
 }
 

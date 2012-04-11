@@ -61,7 +61,7 @@ end subroutine getLogLike
 
 ! dumper, called after every updInt*10 iterations
 
-subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
+subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr, context)
 
 	implicit none
 
@@ -74,6 +74,7 @@ subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLo
 	double precision maxLogLike			! max loglikelihood value
 	double precision logZ				! log evidence
 	double precision logZerr			! error on log evidence
+	integer context					! not required by MultiNest, any additional information user wants to pass
 	
 end subroutine dumper
 
