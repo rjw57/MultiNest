@@ -1,8 +1,8 @@
-MultiNest v 2.14
+MultiNest v 2.17
 Farhan Feroz, Mike Hobson
 f.feroz@mrao.cam.ac.uk
 arXiv:0704.3704 & arXiv:0809.3437
-Released Nov 2011
+Released Mar 2012
 
 ---------------------------------------------------------------------------
 
@@ -29,8 +29,8 @@ restriction imposed by gfortran on line length.
 
 The subtoutine to begin MultiNest are as follows:
 
-subroutine nestRun(mmodal, ceff, nlive, tol, efr, ndims, nPar, nCdims, maxModes, updInt, nullZ, root, seed,
-pWrap, feedback, resume, outfile, initMPI, logZero, loglike, context)
+subroutine nestRun(mmodal, ceff, nlive, tol, efr, ndims, nPar, nCdims, maxModes, updInt, Ztol, root, seed,
+pWrap, feedback, resume, outfile, initMPI, logZero, maxiter, loglike, dumper, context)
 
 logical mmodal 	 								!do mode separation?
 integer nlive 	 								!number of live points
@@ -42,7 +42,7 @@ integer nPar	 								!total no. of parameters
 integer nCdims									!no. of parameters on which clustering should be performed (read below)
 integer maxModes								!maximum no. of modes (for memory allocation)
 integer updInt									!iterations after which the output files should be written
-double precision nullZ								!null log-evidence (read below)
+double precision Ztol								!null log-evidence (read below)
 character(LEN=100) root  							!root for MultiNest output files
 integer seed 		 							!random no. generator seed, -ve value for seed from the sys clock
 integer pWrap[ndims]								!wraparound parameters?
@@ -52,14 +52,16 @@ logical outfile									!write output files?
 logical initMPI									!initialize MPI routines?, relevant only if compiling with MPI
 										!set it to F if you want your main program to handle MPI initialization
 double precision logZero							!points with loglike < logZero will be ignored by MultiNest
+integer maxiter									!max no. of iterations, a non-positive value means infinity. MultiNest will terminate if either it 
+										!has done max no. of iterations or convergence criterion (defined through tol) has been satisfied
 loglike(Cube,ndims,nPar,lnew) 							!subroutine which gives lnew=loglike(Cube(ndims))
-dumper(nSamples,nlive,nPar,physLive,posterior,paramConstr,maxloglike,logZ)	!subroutine called after every updInt*10 iterations with the posterior 
+dumper(nSamples,nlive,nPar,physLive,posterior,paramConstr,maxloglike,logZ,c)	!subroutine called after every updInt*10 iterations with the posterior 
 										!distribution, parameter constraints, max loglike & log evidence values
-integer context									!dummy integer for the C interface
+integer context									!not required by MultiNest, any additional information user wants to pass
       
 --------------------------------------------------------------------------- 
 
-likelihood routine: slikelihood(Cube,ndims,nPar,lnew)
+likelihood routine: slikelihood(Cube,ndims,nPar,lnew,context)
 
 Cube(1:nPar) has nonphysical parameters
 scale Cube(1:n_dim) & return the scaled parameters in Cube(1:n_dim) & additional parameters that you want to
@@ -68,7 +70,7 @@ Return the log-likelihood in lnew
 
 ---------------------------------------------------------------------------
 
-dumper routine: dumper(nSamples,nlive,nPar,physLive,posterior,paramConstr,maxloglike,logZ, logZerr)
+dumper routine: dumper(nSamples,nlive,nPar,physLive,posterior,paramConstr,maxloglike,logZ,logZerr,context)
 
 This routine is called after every updInt*10 iterations & at the end of the sampling allowing the posterior 
 distribution & parameter constraints to be passed on to the user in the memory. The argument are as follows:
@@ -87,6 +89,7 @@ paramConstr(1, 4*nPar):
 maxLogLike					    	= maximum loglikelihood value
 logZ						     	= log evidence value
 logZerr						     	= error on log evidence value
+context							not required by MultiNest, any additional information user wants to pass
 
 The 2D arrays are Fortran arrays which are different to C/C++ arrays. In the example dumper routine provided with C & C++
 eggbox examples, the Fortran arrays are copied on to C/C++ arrays.
@@ -154,11 +157,11 @@ clustering is less accurate as the dimensionality increases. If nCdims < ndims t
 the first nCdims parameters.
 
 
-nullZ:
+Ztol:
 If mmodal is T, MultiNest can find multiple modes & also specify which samples belong to which mode. It might be
 desirable to have separate samples & mode statistics for modes with local log-evidence value greater than a
-particular value in which case nullZ should be set to that value. If there isn't any particulrly interesting
-nullZ value, then nullZ should be set to a very large negative number (e.g. -1.d90).
+particular value in which case Ztol should be set to that value. If there isn't any particularly interesting
+Ztol value, then Ztol should be set to a very large negative number (e.g. -1.d90).
 
 ---------------------------------------------------------------------------
 
@@ -195,12 +198,12 @@ Sample probability is the sample prior mass multiplied by its likelihood & norma
 
 [root]post_separate.dat
 This file is only created if mmodal is set to T. Posterior samples for modes with local log-evidence value
-greater than nullZ, separated by 2 blank lines. Format is the same as [root].txt file.
+greater than Ztol, separated by 2 blank lines. Format is the same as [root].txt file.
 
 
 [root]stats.dat
 Contains the global log-evidence, its error & local log-evidence with error & parameter means & standard
-deviations as well as the  best fit & MAP parameters of each of the mode found with local log-evidence > nullZ.
+deviations as well as the  best fit & MAP parameters of each of the mode found with local log-evidence > Ztol.
 
 
 [root]post_equal_weights.dat
@@ -208,9 +211,9 @@ Contains the equally weighted posterior samples. Columns have parameter values f
 
 
 [root]summary.txt
-There is one line per mode with nPar*4+2 values in each line in this file. Each line has the following values in its column
-mean parameter values, standard deviations of the parameters, bestfit (maxlike) parameter values, MAP 
-(maximum-a-posteriori) parameter values, local log evidence, maximum loglike value
+There is one line per mode with nPar*4+2 values in each line in this file. Each line has the following values 
+in its column mean parameter values, standard deviations of the parameters, bestfit (maxlike) parameter values, 
+MAP (maximum-a-posteriori) parameter values, local log evidence, maximum loglike value
 
 ---------------------------------------------------------------------------
 
@@ -220,7 +223,7 @@ C interface to MultiNest is provided in header file multinest.h in example_eggbo
 C++ interface to MultiNest is provided in header file multinest.h in example_eggboxC++ directory.
 
 You might need to check the symbol table for your platform (nm libnest3.a | grep nestrun) & edit 
-example_eggbox_C++/eggbox.cc & example_eggbox_C/eggbox.c files to define NESTRUN.
+multinest.h file to define NESTRUN.
 
 ---------------------------------------------------------------------------
 
@@ -250,5 +253,42 @@ example_himmelblau: The Himmelblau's minimization problem. (see http://en.wikipe
 example_rosenbrock: Rosenbrock minimization problem. (see http://en.wikipedia.org/wiki/Rosenbrock_function)
 
 example_gaussian: Multivariate Gaussian with uncorrelated paramters.
+
+---------------------------------------------------------------------------
+
+Build through CMake
+
+There is a minimal CMake file called CMakeLists.txt included (courtesy of Brian Kloppenborg). It can be used as follows:
+
+cmake CMakeLists.txt
+make
+
+---------------------------------------------------------------------------
+
+Common Problems:
+
+
+Problem: MultiNest crashes after segmentation fault.
+
+Solution: Try increasing the stack size (ulimit -s unlimited on Linux) & resume your job.
+
+
+Problem: Output files (.txt & post_equal_weights.dat) files have very few (of order tens) points.
+
+Solution: If tol is set to a reasonable value (tol <= 1) & the job hasn't finished then it is possible for these files to 
+have very few points in them. If even after the completion of job these files have very few points then increase the stack
+size (ulimit -s unlimited on Linux) & resume the job again.
+
+
+Problem: Not all modes are being reported in the stats file.
+
+Solution: stats file reports all the modes with local log-evidence value greater than Ztol. Set Ztol to a very large 
+negative number (e.g. -1.d90) in order for the stats file to report all the modes found.
+
+
+Problem: Compilation fails with error something like 'can not find nestrun function'.
+
+Solution: Check the symbol table for your platform (nm libnest3.a | grep nestrun) & edit multinest.h file to define NESTRUN
+appropriately.
 
 ---------------------------------------------------------------------------

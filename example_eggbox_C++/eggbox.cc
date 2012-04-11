@@ -15,6 +15,7 @@
 // Input arguments
 // ndim 						= dimensionality (total number of free parameters) of the problem
 // npars 						= total number of free plus derived parameters
+// context						void pointer, any additional information
 //
 // Input/Output arguments
 // Cube[npars] 						= on entry has the ndim parameters in unit-hypercube
@@ -23,7 +24,7 @@
 // Output arguments
 // lnew 						= loglikelihood
 
-void LogLike(double *Cube, int &ndim, int &npars, double &lnew)
+void LogLike(double *Cube, int &ndim, int &npars, double &lnew, void *context)
 {
 	double chi = 1.0;
 	int i;
@@ -62,8 +63,9 @@ void LogLike(double *Cube, int &ndim, int &npars, double &lnew)
 // maxLogLike						= maximum loglikelihood value
 // logZ							= log evidence value
 // logZerr						= error on log evidence value
+// context						void pointer, any additional information
 
-void dumper(int &nSamples, int &nlive, int &nPar, double **physLive, double **posterior, double **paramConstr, double &maxLogLike, double &logZ, double &logZerr)
+void dumper(int &nSamples, int &nlive, int &nPar, double **physLive, double **posterior, double **paramConstr, double &maxLogLike, double &logZ, double &logZerr, void *context)
 {
 	// convert the 2D Fortran arrays to C++ arrays
 	
@@ -129,7 +131,7 @@ int main(int argc, char *argv[])
 	int pWrap[ndims];				// which parameters to have periodic boundary conditions?
 	for(int i = 0; i < ndims; i++) pWrap[i] = 0;
 	
-	char root[100] = "chains/1-";			// root for output files
+	char root[100] = "chains/eggboxCC-";			// root for output files
 	
 	int seed = -1;					// random no. generator seed, if < 0 then take the seed from system clock
 	
@@ -144,14 +146,17 @@ int main(int argc, char *argv[])
 	
 	double logZero = -1E90;				// points with loglike < logZero will be ignored by MultiNest
 	
-	int context = 0;				// not required by MultiNest, any additional information user wants to pass
+	int maxiter = 0;				// max no. of iterations, a non-positive value means infinity. MultiNest will terminate if either it 
+							// has done max no. of iterations or convergence criterion (defined through tol) has been satisfied
+	
+	void *context = 0;				// not required by MultiNest, any additional information user wants to pass
 
 	
 	
 	// calling MultiNest
 
 	nested::run(mmodal, ceff, nlive, tol, efr, ndims, nPar, nClsPar, maxModes, updInt, Ztol, root, seed, pWrap, fb, resume, outfile, initMPI,
-	logZero, LogLike, dumper);
+	logZero, maxiter, LogLike, dumper, context);
 }
 
 /***********************************************************************************************************************/

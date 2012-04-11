@@ -15,7 +15,7 @@ function DeltaFunctionPrior(r,x1,x2)
 
 	implicit none
 
-	real*8 r,x1,x2,DeltaFunctionPrior
+	double precision r,x1,x2,DeltaFunctionPrior
 
 	DeltaFunctionPrior=x1
       
@@ -28,7 +28,7 @@ function UniformPrior(r,x1,x2)
 
       	implicit none
 
-      	real*8 r,x1,x2,UniformPrior
+      	double precision r,x1,x2,UniformPrior
 
       	UniformPrior=x1+r*(x2-x1)
 
@@ -41,8 +41,8 @@ function LogPrior(r,x1,x2)
 
       	implicit none
 
-      	real*8 r,x1,x2,LogPrior
-      	real*8 lx1,lx2
+      	double precision r,x1,x2,LogPrior
+      	double precision lx1,lx2
 
       	if (r.le.0.0d0) then
        		LogPrior=-1.0d32
@@ -61,7 +61,7 @@ function SinPrior(r,x1,x2)
 
       	implicit none
 
-      	real*8 r,x1,x2,SinPrior
+      	double precision r,x1,x2,SinPrior
       	real cx1,cx2,deg2rad
       	parameter(deg2rad=0.017453292)
 
@@ -78,7 +78,7 @@ function CauchyPrior(r,x0,gamma)
 
       	implicit none
 
-      	real*8 r,x0,gamma,CauchyPrior
+      	double precision r,x0,gamma,CauchyPrior
       	real Pi
       	parameter(Pi=3.141592654)
 
@@ -93,8 +93,8 @@ function GaussianPrior(r,mu,sigma)
 
       	implicit none
 
-      	real*8 r,mu,sigma,GaussianPrior
-      	real*8 SqrtTwo
+      	double precision r,mu,sigma,GaussianPrior
+      	double precision SqrtTwo
       	parameter(SqrtTwo=1.414213562d0)
 
       	if (r.le.1.0d-16.or.(1.0d0-r).le.1.0d-16) then
@@ -113,8 +113,8 @@ function LogNormalPrior(r,a,sigma)
 
       	implicit none
 
-      	real*8 r,a,sigma,LogNormalPrior
-      	real*8 SqrtTwo,bracket
+      	double precision r,a,sigma,LogNormalPrior
+      	double precision SqrtTwo,bracket
       	parameter(SqrtTwo=1.414213562d0)
 
       	bracket=sigma*sigma+sigma*SqrtTwo*dierfc(2.d0*r)
@@ -128,10 +128,10 @@ end function LogNormalPrior
 function dierfc(y)
 
 	implicit none
-      	real*8 y,dierfc
-      	real*8 qa,qb,qc,qd,q0,q1,q2,q3,q4,pa,pb,p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18
-      	real*8 p19,p20,p21,p22,x,z,w,u,s,t
-      	real*8 infinity
+      	double precision y,dierfc
+      	double precision qa,qb,qc,qd,q0,q1,q2,q3,q4,pa,pb,p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18
+      	double precision p19,p20,p21,p22,x,z,w,u,s,t
+      	double precision infinity
       	parameter (infinity=5.0d0)
       	parameter (qa=9.16461398268964d-01, &
       	qb=2.31729200323405d-01, &

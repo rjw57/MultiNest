@@ -84,6 +84,11 @@ implicit none
       	!points with loglike < nest_logZero will be ignored by MultiNest
       	double precision nest_logZero
       	parameter(nest_logZero=-huge(1d0))
+      
+      	!max no. of iterations, a non-positive value means infinity. MultiNest will terminate if either it 
+	!has done max no. of iterations or convergence criterion (defined through nest_tol) has been satisfied
+      	integer nest_maxIter
+      	parameter(nest_maxIter=0)
 	
 	!parameters to wrap around (0 is F & non-zero T)
 	integer nest_pWrap(sdim)
