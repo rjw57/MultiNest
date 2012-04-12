@@ -1191,10 +1191,15 @@ contains
 	enddo
 	
 	i2=2
+!	if(cSwitch) then
+!		call Kmeans3(i2,ptk(1:nCdim+1,1:i1),i1,nCdim+1,mu_tmp(:,1:nCdim+1),cluster2(1:i1),min_pt)
+!	else
+!		call Kmeans3(i2,ptk(1:ndim+1,1:i1),i1,ndim+1,mu_tmp(:,1:ndim+1),cluster2(1:i1),min_pt)
+!	endif
 	if(cSwitch) then
-		call Kmeans3(i2,ptk(1:nCdim+1,1:i1),i1,nCdim+1,mu_tmp(:,1:nCdim+1),cluster2(1:i1),min_pt)
+		call Kmeans3(i2,ptk(1:nCdim,1:i1),i1,nCdim,mu_tmp(:,1:nCdim),cluster2(1:i1),min_pt)
 	else
-		call Kmeans3(i2,ptk(1:ndim+1,1:i1),i1,ndim+1,mu_tmp(:,1:ndim+1),cluster2(1:i1),min_pt)
+		call Kmeans3(i2,ptk(1:ndim,1:i1),i1,ndim,mu_tmp(:,1:ndim),cluster2(1:i1),min_pt)
 	endif
 	
 	!separate out the points

@@ -41,7 +41,7 @@ implicit none
 	
       	!sample with constant efficiency
 	logical nest_ceff
- 	parameter(nest_ceff=.false.)
+ 	parameter(nest_ceff=.true.)
 	
       	!max no. of live points
       	integer nest_nlive
@@ -55,7 +55,7 @@ implicit none
       
       	!seed for nested sampler, -ve means take it from sys clock
 	integer nest_rseed 
-	parameter(nest_rseed=1)
+	parameter(nest_rseed=-1)
       
       	!evidence tolerance factor
       	double precision nest_tol 
@@ -102,6 +102,11 @@ implicit none
       	!points with loglike < nest_logZero will be ignored by MultiNest
       	double precision nest_logZero
       	parameter(nest_logZero=-huge(1d0))
+      
+      	!max no. of iterations, a non-positive value means infinity. MultiNest will terminate if either it 
+	!has done max no. of iterations or convergence criterion (defined through nest_tol) has been satisfied
+      	integer nest_maxIter
+      	parameter(nest_maxIter=0)
 	
 	!parameters to wrap around (0 is F & non-zero T)
 	integer nest_pWrap(sdim)

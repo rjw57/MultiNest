@@ -18,7 +18,7 @@ contains
 !------------------------------------------------------------------------
       
  subroutine pos_samp(Ztol,nIter,root,nLpt,ndim,nCdim,nPar,multimodal,outfile,globZ,globinfo,ic_n,ic_Z,ic_info,ic_reme, &
- ic_vnow,ic_npt,ic_nBrnch,ic_brnch,phyP,l,evDataAll,dumper)
+ ic_vnow,ic_npt,ic_nBrnch,ic_brnch,phyP,l,evDataAll,dumper,context)
  !subroutine pos_samp
   	implicit none
   	
@@ -42,6 +42,7 @@ contains
       	double precision d1,d2,urv
       	double precision ltmp(nPar+2),ic_zloc(ic_n),ic_infoloc(ic_n),gzloc,ginfoloc
 	integer phyID(nLpt)
+	integer context
       
       	!posterior info
       	double precision lognpost,globZ,globInfo,gZold,maxWt
@@ -56,8 +57,8 @@ contains
 	
 	INTERFACE
 		!the user dumper function
-    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
-			integer nSamples, nlive, nPar
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr, context_pass)
+			integer nSamples, nlive, nPar, context_pass
 			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
 			double precision maxLogLike, logZ, logZerr
 		end subroutine dumper
@@ -349,7 +350,7 @@ contains
 	logZerr=sqrt(ginfoloc/dble(nLpt))
 	
 	! call the dumper
-	call dumper(nSamples, nLpt, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
+	call dumper(nSamples, nLpt, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr, context)
 
       	deallocate(branchp,evdatp,wt)
       	deallocate(nbranchp,nPtPerNode)

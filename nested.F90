@@ -1,5 +1,5 @@
 ! Do nested sampling algorithm to calculate Bayesian evidence
-! Nov 2011
+! Mar 2012
 ! Farhan Feroz
 
 module Nested
@@ -30,6 +30,7 @@ module Nested
   logical ceff ! constant efficiency?
   integer numlike,globff
   double precision logZero
+  integer maxIter
   logical fback,resumeFlag,dlive,genLive,dino
   !output files name
   character(LEN=100)physname,broot,rname,resumename,livename,evname
@@ -44,12 +45,13 @@ module Nested
 contains
   
   subroutine nestRun(nest_mmodal,nest_ceff,nest_nlive,nest_tol,nest_ef,nest_ndims,nest_totPar,nest_nCdims,maxClst, &
-  nest_updInt,nest_Ztol,nest_root,seed,nest_pWrap,nest_fb,nest_resume,nest_outfile,initMPI,nest_logZero,loglike,dumper,context)
+  nest_updInt,nest_Ztol,nest_root,seed,nest_pWrap,nest_fb,nest_resume,nest_outfile,initMPI,nest_logZero,nest_maxIter, &
+  loglike,dumper,context)
         
   	implicit none
         
 	integer nest_ndims,nest_nlive,nest_updInt,context,seed,i
-	integer maxClst,nest_nsc,nest_totPar,nest_nCdims,nest_pWrap(*)
+	integer maxClst,nest_nsc,nest_totPar,nest_nCdims,nest_pWrap(*),nest_maxIter
 	logical nest_mmodal,nest_fb,nest_resume,nest_ceff,nest_outfile,initMPI
 	character(LEN=100) nest_root
 	double precision nest_tol,nest_ef,nest_Ztol,nest_logZero
@@ -64,8 +66,8 @@ contains
 	
 	INTERFACE
 		!the user dumper function
-    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
-			integer nSamples, nlive, nPar
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr, context_pass)
+			integer nSamples, nlive, nPar, context_pass
 			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
 			double precision maxLogLike, logZ, logZerr
 		end subroutine dumper
@@ -91,6 +93,8 @@ contains
 	Ztol=nest_Ztol
 	updInt=nest_updInt
 	logZero=nest_logZero
+	maxIter=nest_maxIter
+	if(maxIter<=0) maxIter=huge(1)
 	
 	ndims=nest_ndims
       	totPar=nest_totPar
@@ -197,9 +201,9 @@ contains
 		endif
       
 		write(*,*)"*****************************************************"
-		write(*,*)"MultiNest v2.14"
+		write(*,*)"MultiNest v2.17"
       		write(*,*)"Copyright Farhan Feroz & Mike Hobson"
-      		write(*,*)"Release Nov 2011"
+      		write(*,*)"Release Mar 2012"
 		write(*,*)
       		write(*,'(a,i4)')" no. of live points = ",nest_nlive
       		write(*,'(a,i4)')" dimensionality = ",nest_ndims
@@ -216,7 +220,7 @@ contains
 		endif
 	endif
 	
-	call Nestsample(loglike, dumper)
+	call Nestsample(loglike, dumper, context)
 	deallocate(pWrap)
       	call killRandomNS()
 #ifdef MPI
@@ -227,10 +231,11 @@ contains
 
 !----------------------------------------------------------------------
 
-  subroutine Nestsample(loglike, dumper)
+  subroutine Nestsample(loglike, dumper, context)
 	
 	implicit none
 	
+	integer context
 	double precision, allocatable :: p(:,:), phyP(:,:) !live points
 	double precision, allocatable :: l(:) !log-likelihood
 	double precision vnow1!current vol
@@ -249,8 +254,8 @@ contains
 	
 	INTERFACE
 		!the user dumper function
-    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
-			integer nSamples, nlive, nPar
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr, context_pass)
+			integer nSamples, nlive, nPar, context_pass
 			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
 			double precision maxLogLike, logZ, logZerr
 		end subroutine dumper
@@ -327,7 +332,7 @@ contains
 	if(genLive) then
 		if(my_rank==0 .and. fback) write(*,*) 'generating live points'
 		
-		call gen_initial_live(p,phyP,l,loglike,dumper)
+		call gen_initial_live(p,phyP,l,loglike,dumper,context)
 	
 		if(my_rank==0) then
 			globff=nlive
@@ -340,7 +345,7 @@ contains
 	call MPI_BARRIER(MPI_COMM_WORLD,errcode)
 #endif
 	
-	call clusteredNest(p,phyP,l,loglike,dumper)
+	call clusteredNest(p,phyP,l,loglike,dumper,context)
 	
 	if(my_rank==0) then
 		write(*,*)"ln(ev)=",gZ,"+/-",sqrt(ginfo/dble(nlive))
@@ -355,11 +360,11 @@ contains
 
 !----------------------------------------------------------------------
 
-  subroutine gen_initial_live(p,phyP,l,loglike,dumper)
+  subroutine gen_initial_live(p,phyP,l,loglike,dumper,context)
     
 	implicit none
     
-    	integer i,j,iostatus,idum,k,m,nptPerProc,nGen,nstart,nend
+    	integer i,j,iostatus,idum,k,m,nptPerProc,nGen,nstart,nend,context
     	double precision, allocatable :: pnewP(:,:), phyPnewP(:,:), lnewP(:)
     	double precision p(ndims,nlive+1), phyP(totPar,nlive+1), l(nlive+1)
     	integer id
@@ -379,8 +384,8 @@ contains
 	
 	INTERFACE
 		!the user dumper function
-    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
-			integer nSamples, nlive, nPar
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr, context_pass)
+			integer nSamples, nlive, nPar, context_pass
 			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
 			double precision maxLogLike, logZ, logZerr
 		end subroutine dumper
@@ -494,7 +499,7 @@ contains
             	do
 			call getrandom(ndims,pnewP(:,j),id)  ! start points
 			phyPnewP(1:ndims,j)=pnewP(1:ndims,j)
-			call loglike(phyPnewP(:,j),ndims,totPar,lnewP(j),id+1)
+			call loglike(phyPnewP(:,j),ndims,totPar,lnewP(j),context)
                   	if(lnewP(j)>logZero) exit
 		enddo
 		if(k==nptPerProc .or. j==10) then
@@ -592,13 +597,14 @@ contains
 
 !----------------------------------------------------------------------
   
-  subroutine clusteredNest(p,phyP,l,loglike,dumper)
+  subroutine clusteredNest(p,phyP,l,loglike,dumper,context)
   	
 	implicit none
 	
 	
 	!input variables
 	
+	integer context
 	double precision p(ndims,nlive+1) !live points
 	double precision phyP(totPar,nlive+1) !physical live points
 	double precision l(nlive+1) !log-likelihood
@@ -614,8 +620,6 @@ contains
 	double precision h, logX, vprev, vnext, shrink !prior volume
 	double precision mar_r !marginal acceptance rate
 	double precision gZOld !global evidence & info
-	integer maxIter !max no. of iterations
-	parameter(maxIter=1000000)
 	logical eswitch,peswitch,cSwitch !whether to do ellipsoidal sampling or not
 	logical remFlag, acpt, flag, flag2
 	integer funit1, funit2 !file units
@@ -686,8 +690,8 @@ contains
 	
 	INTERFACE
 		!the user dumper function
-    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr)
-			integer nSamples, nlive, nPar
+    		subroutine dumper(nSamples, nlive, nPar, physLive, posterior, paramConstr, maxLogLike, logZ, logZerr, context_pass)
+			integer nSamples, nlive, nPar, context_pass
 			double precision, pointer :: physLive(:,:), posterior(:,:), paramConstr(:)
 			double precision maxLogLike, logZ, logZerr
 		end subroutine dumper
@@ -961,7 +965,7 @@ contains
                 		if(fback) call gfeedback(gZ,numlike,globff,.false.)
 				call pos_samp(Ztol,globff,broot,nlive,ndims,nCdims,totPar,multimodal,outfile,gZ,ginfo,ic_n,ic_Z(1:ic_n), &
 				ic_info(1:ic_n),ic_reme(1:ic_n),ic_vnow(1:ic_n),ic_npt(1:ic_n),ic_nBrnch(1:ic_n),ic_brnch(1:ic_n,:,1),phyP(:,1:nlive), &
-				l(1:nlive),evDataAll,dumper)
+				l(1:nlive),evDataAll,dumper,context)
 				
 				!if done then add in the contribution to the global evidence from live points
 				j=0
@@ -1070,7 +1074,7 @@ contains
 					q=sum(ic_npt(1:i))
 					do j=i+1,ic_n
 						if(ic_rFlag(j)) then
-							!father node
+							!parent node
 							k=ic_fNode(j)
 							!divide prior volume
 							ic_vnow(j)=ic_vnow(k)*dble(ic_npt(j))/dble(nptk(k))
@@ -1078,9 +1082,9 @@ contains
 							ic_zold(j)=ic_z(k)
 							ic_Z(j)=log(dble(ic_npt(j))/dble(nptk(k)))+ic_Z(k)
 							ic_info(j)=ic_info(k)*dble(ic_npt(j))/dble(nptk(k))*exp(ic_zold(j)-ic_z(j))
-							!note the father node
-							nodek(k)=1
+							nodek(k)=1 !note the parent node
 							ic_hilike(j)=maxval(l(q+1:q+ic_npt(j)))
+							if(ic_hilike(j)-minval(l(q+1:q+ic_npt(j)))<= 0.0001) ic_done(j)=.true.
 							if(ceff) then
 								ic_eff(j,1:2)=0d0
 								ic_eff(j,3:4)=ic_eff(k,3:4)
@@ -1113,6 +1117,7 @@ contains
 								ic_info(j)=ic_info(j)*dble(ic_npt(j))/dble(nptk(j))*exp(ic_zold(j)-ic_z(j))
 							endif
 							ic_hilike(j)=maxval(l(q+1:q+ic_npt(j)))
+							if(ic_hilike(j)-minval(l(q+1:q+ic_npt(j)))<= 0.0001) ic_done(j)=.true.
 							if(ceff) ic_eff(j,1:2)=0d0
 							
 							sc_npt(m+1)=ic_npt(j)
@@ -1181,13 +1186,26 @@ contains
 						cVolFrac(i1)=totVol(i1)*d4/((ic_vnow(i1)*ic_volFac(i1)))
 				
 						!predicted vol fraction
-						if(dino) then
-							pVolFrac(i1)=max(slope(i1)*dble(globff)+intcpt(i1),1.d0)
+!						if(dino) then
+!							pVolFrac(i1)=max(slope(i1)*dble(globff)+intcpt(i1),1.d0)
+!						else
+!							pVolFrac(i1)=slope(i1)*dble(globff)+intcpt(i1)
+!						endif
+						
+						pVolFrac(i1)=0d0
+						i3=0
+						do i2=1,neVol
+							if(eVolFrac(i1,i2,1)<=0d0) exit
+							pVolFrac(i1)=pVolFrac(i1)+eVolFrac(i1,i2,1)
+							i3=i3+1
+						enddo
+						if(pVolFrac(i1)==0d0) then
+							pVolFrac(i1)=1d0
 						else
-							pVolFrac(i1)=slope(i1)*dble(globff)+intcpt(i1)
+							pVolFrac(i1)=pVolFrac(i1)/dble(i3)
 						endif
 
-						if(.not.flag .and. (cVolFrac(i1)*ic_volFac(i1)>1.05 .or. .not.dino) .and.  &
+						if(.not.flag .and. (cVolFrac(i1)>1.1 .or. .not.dino) .and.  &
 						(pVolFrac(i1)<cVolFrac(i1) .or. mod(ff-1-eswitchff(i1),ic_nsc(i1))==0)) flag=.true.
 				
 						if(flag .and. dino) then
@@ -1297,13 +1315,13 @@ contains
 										ic_volFac(i1)=ic_volFac(i1)/(ic_climits(i1,i2,2)-ic_climits(i1,i2,1))
 									enddo
 									
-									eVolFrac(i1,1,1)=eVolFrac(i1,1,1)*d1/d5
+									!eVolFrac(i1,1,1)=eVolFrac(i1,1,1)*d1/d5
 									
 									if(ceff) then
-										eVolFrac(i1,1,1)=eVolFrac(i1,1,1)/ic_eff(i1,3)
+										!eVolFrac(i1,1,1)=eVolFrac(i1,1,1)/ic_eff(i1,3)
 										ic_eff(i1,4)=ic_vnow(i1)*ic_volFac(i1)/totVol(i1)
 									else
-										eVolFrac(i1,1,1)=eVolFrac(i1,1,1)/ef
+										!eVolFrac(i1,1,1)=eVolFrac(i1,1,1)/ef
 									endif
 									
 									exit
@@ -1411,6 +1429,7 @@ contains
 		if(modeFound) then
 			call MPI_BCAST(ic_n,1,MPI_INTEGER,0,MPI_COMM_WORLD,errcode)
 			call MPI_BCAST(ic_npt(1:ic_n),ic_n,MPI_INTEGER,0,MPI_COMM_WORLD,errcode)
+    			call MPI_BCAST(ic_done(0:ic_n),ic_n+1,MPI_LOGICAL,0,MPI_COMM_WORLD,errcode)
 		endif
 		
 		if(flag2 .and. eswitch) then
@@ -1428,7 +1447,7 @@ contains
 
 		nd_i=0 !no. of ellipsoids traversed
 		nd_j=0 !no. of points traversed
-		do nd=1,ic_n
+		do nd=1,ic_n	
 			if(ic_done(nd)) then
 				nd_i=nd_i+ic_sc(nd)
 				nd_j=nd_j+ic_npt(nd)
@@ -1503,7 +1522,7 @@ contains
 #endif
 	                  			if(.not.remFlag) then
 	            					!generate mpi_nthreads potential points
-							call samp(pnew,phyPnew,lnew,sc_mean(1,:),d1,sc_tMat(1,:,:),ic_climits(nd,:,:),loglike,eswitch)
+							call samp(pnew,phyPnew,lnew,sc_mean(1,:),d1,sc_tMat(1,:,:),ic_climits(nd,:,:),loglike,eswitch,context)
 						
 							if(my_rank==0) then
 								lnewa(nd,1)=lnew
@@ -1609,7 +1628,7 @@ contains
 						
 							!generate mpi_nthreads potential points
 							d1=sc_kfac(i)*sc_eff(i)
-							call samp(pnew,phyPnew,lnew,sc_mean(i,:),d1,sc_tMat(i,:,:),ic_climits(nd,:,:),loglike,eswitch)
+							call samp(pnew,phyPnew,lnew,sc_mean(i,:),d1,sc_tMat(i,:,:),ic_climits(nd,:,:),loglike,eswitch,context)
 							if(my_rank==0) then
 								lnewa(nd,1)=lnew
 						
@@ -1880,7 +1899,6 @@ contains
 					
 					lowlike=minval(l(nd_j+1:nd_j+ic_npt(nd)))
 				
-					!write the output files
 					if(abs(lowlike-ic_hilike(nd))<= 0.0001 .or. (ic_inc(nd)<log(tol) .and. &
 					globff-nlive>50) .or. ff==maxIter) then
 						ic_done(nd)=.true.
@@ -2019,7 +2037,7 @@ contains
 					
 					if(mod(sff,updInt*10)==0 .or. ic_done(0)) call pos_samp(Ztol,globff,broot,nlive,ndims,nCdims,totPar, &
 					multimodal,outfile,gZ,ginfo,ic_n,ic_Z(1:ic_n),ic_info(1:ic_n),ic_reme(1:ic_n),ic_vnow(1:ic_n), &
-					ic_npt(1:ic_n),ic_nBrnch(1:ic_n),ic_brnch(1:ic_n,:,1),phyP(:,1:nlive),l(1:nlive),evDataAll,dumper)
+					ic_npt(1:ic_n),ic_nBrnch(1:ic_n),ic_brnch(1:ic_n,:,1),phyP(:,1:nlive),l(1:nlive),evDataAll,dumper,context)
 				endif
 			endif
 			
@@ -2182,7 +2200,7 @@ contains
 
 !---------------------------------------------------------------------- 
   !sample a point inside the given ellipsoid with log-likelihood>lboundary
-  subroutine samp(pnew,phyPnew,lnew,mean,ekfac,TMat,limits,loglike,eswitch)
+  subroutine samp(pnew,phyPnew,lnew,mean,ekfac,TMat,limits,loglike,eswitch,context)
 	
 	implicit none
 	double precision lnew
@@ -2190,7 +2208,7 @@ contains
     	double precision mean(ndims),TMat(ndims,ndims)
 	double precision limits(ndims,2)
     	logical eswitch
-    	integer id,i
+    	integer id,i,context
     
     	INTERFACE
     		!the likelihood function
@@ -2206,7 +2224,7 @@ contains
 		!generate a random point inside unit hypercube
 		call getrandom(ndims,pnew(1:ndims),id)
 		phyPnew(1:ndims)=pnew(1:ndims)
-    		call loglike(phyPnew,ndims,totPar,lnew,id+1)
+    		call loglike(phyPnew,ndims,totPar,lnew,context)
     	else
 		do
 			!generate a point uniformly inside the given ellipsoid
@@ -2219,7 +2237,7 @@ contains
 			enddo
 			if(.not.inprior(ndims,spnew(1:ndims))) cycle
 			phyPnew(1:ndims)=spnew(1:ndims)
-    			call loglike(phyPnew,ndims,totPar,lnew,id+1)
+    			call loglike(phyPnew,ndims,totPar,lnew,context)
 			if(lnew>logZero) exit
 		enddo
       	endif
